@@ -26,44 +26,81 @@ public class OperationalReportService {
     }
 
     @Transactional(readOnly = true)
-    public OperationalReportResponse getGlobalReport() {
-        long totalTickets = ticketRepository.count();
+    public OperationalReportResponse getGlobalReport(
+            LocalDateTime startAt,
+            LocalDateTime endAt
+    ) {
+        LocalDateTime resolvedStartAt = resolveStartAt(startAt);
+        LocalDateTime resolvedEndAt = resolveEndAt(endAt);
 
-        long validTickets = ticketRepository.countByStatus(TicketStatus.VALID);
-        long usedTickets = ticketRepository.countByStatus(TicketStatus.USED);
-        long cancelledTickets = ticketRepository.countByStatus(TicketStatus.CANCELLED);
-
-        long publicValidations = ticketAuditLogRepository.countByAction(
-                TicketAuditAction.PUBLIC_VALIDATION
+        long totalTickets = ticketRepository.countByIssuedAtBetween(
+                resolvedStartAt,
+                resolvedEndAt
         );
 
-        long successfulPublicValidations = ticketAuditLogRepository.countByActionAndSuccess(
+        long validTickets = ticketRepository.countByStatusAndIssuedAtBetween(
+                TicketStatus.VALID,
+                resolvedStartAt,
+                resolvedEndAt
+        );
+
+        long usedTickets = ticketRepository.countByStatusAndIssuedAtBetween(
+                TicketStatus.USED,
+                resolvedStartAt,
+                resolvedEndAt
+        );
+
+        long cancelledTickets = ticketRepository.countByStatusAndIssuedAtBetween(
+                TicketStatus.CANCELLED,
+                resolvedStartAt,
+                resolvedEndAt
+        );
+
+        long publicValidations = ticketAuditLogRepository.countByActionAndCreatedAtBetween(
                 TicketAuditAction.PUBLIC_VALIDATION,
-                true
+                resolvedStartAt,
+                resolvedEndAt
         );
 
-        long failedPublicValidations = ticketAuditLogRepository.countByActionAndSuccess(
+        long successfulPublicValidations = ticketAuditLogRepository.countByActionAndSuccessAndCreatedAtBetween(
                 TicketAuditAction.PUBLIC_VALIDATION,
-                false
+                true,
+                resolvedStartAt,
+                resolvedEndAt
         );
 
-        long boardingAttempts = ticketAuditLogRepository.countByAction(
-                TicketAuditAction.BOARDING
+        long failedPublicValidations = ticketAuditLogRepository.countByActionAndSuccessAndCreatedAtBetween(
+                TicketAuditAction.PUBLIC_VALIDATION,
+                false,
+                resolvedStartAt,
+                resolvedEndAt
         );
 
-        long successfulBoardings = ticketAuditLogRepository.countByActionAndSuccess(
+        long boardingAttempts = ticketAuditLogRepository.countByActionAndCreatedAtBetween(
                 TicketAuditAction.BOARDING,
-                true
+                resolvedStartAt,
+                resolvedEndAt
         );
 
-        long failedBoardings = ticketAuditLogRepository.countByActionAndSuccess(
+        long successfulBoardings = ticketAuditLogRepository.countByActionAndSuccessAndCreatedAtBetween(
                 TicketAuditAction.BOARDING,
-                false
+                true,
+                resolvedStartAt,
+                resolvedEndAt
+        );
+
+        long failedBoardings = ticketAuditLogRepository.countByActionAndSuccessAndCreatedAtBetween(
+                TicketAuditAction.BOARDING,
+                false,
+                resolvedStartAt,
+                resolvedEndAt
         );
 
         return buildResponse(
                 null,
                 "GLOBAL",
+                resolvedStartAt,
+                resolvedEndAt,
                 totalTickets,
                 validTickets,
                 usedTickets,
@@ -78,69 +115,98 @@ public class OperationalReportService {
     }
 
     @Transactional(readOnly = true)
-    public OperationalReportResponse getCompanyReport(UUID companyId) {
-        long totalTickets = ticketRepository.countByBooking_Trip_TransportCompany_Id(
-                companyId
+    public OperationalReportResponse getCompanyReport(
+            UUID companyId,
+            LocalDateTime startAt,
+            LocalDateTime endAt
+    ) {
+        LocalDateTime resolvedStartAt = resolveStartAt(startAt);
+        LocalDateTime resolvedEndAt = resolveEndAt(endAt);
+
+        long totalTickets = ticketRepository.countByBooking_Trip_TransportCompany_IdAndIssuedAtBetween(
+                companyId,
+                resolvedStartAt,
+                resolvedEndAt
         );
 
-        long validTickets = ticketRepository.countByStatusAndBooking_Trip_TransportCompany_Id(
+        long validTickets = ticketRepository.countByStatusAndBooking_Trip_TransportCompany_IdAndIssuedAtBetween(
                 TicketStatus.VALID,
-                companyId
+                companyId,
+                resolvedStartAt,
+                resolvedEndAt
         );
 
-        long usedTickets = ticketRepository.countByStatusAndBooking_Trip_TransportCompany_Id(
+        long usedTickets = ticketRepository.countByStatusAndBooking_Trip_TransportCompany_IdAndIssuedAtBetween(
                 TicketStatus.USED,
-                companyId
+                companyId,
+                resolvedStartAt,
+                resolvedEndAt
         );
 
-        long cancelledTickets = ticketRepository.countByStatusAndBooking_Trip_TransportCompany_Id(
+        long cancelledTickets = ticketRepository.countByStatusAndBooking_Trip_TransportCompany_IdAndIssuedAtBetween(
                 TicketStatus.CANCELLED,
-                companyId
+                companyId,
+                resolvedStartAt,
+                resolvedEndAt
         );
 
         long publicValidations = ticketAuditLogRepository
-                .countByActionAndTicket_Booking_Trip_TransportCompany_Id(
+                .countByActionAndTicket_Booking_Trip_TransportCompany_IdAndCreatedAtBetween(
                         TicketAuditAction.PUBLIC_VALIDATION,
-                        companyId
+                        companyId,
+                        resolvedStartAt,
+                        resolvedEndAt
                 );
 
         long successfulPublicValidations = ticketAuditLogRepository
-                .countByActionAndSuccessAndTicket_Booking_Trip_TransportCompany_Id(
+                .countByActionAndSuccessAndTicket_Booking_Trip_TransportCompany_IdAndCreatedAtBetween(
                         TicketAuditAction.PUBLIC_VALIDATION,
                         true,
-                        companyId
+                        companyId,
+                        resolvedStartAt,
+                        resolvedEndAt
                 );
 
         long failedPublicValidations = ticketAuditLogRepository
-                .countByActionAndSuccessAndTicket_Booking_Trip_TransportCompany_Id(
+                .countByActionAndSuccessAndTicket_Booking_Trip_TransportCompany_IdAndCreatedAtBetween(
                         TicketAuditAction.PUBLIC_VALIDATION,
                         false,
-                        companyId
+                        companyId,
+                        resolvedStartAt,
+                        resolvedEndAt
                 );
 
         long boardingAttempts = ticketAuditLogRepository
-                .countByActionAndTicket_Booking_Trip_TransportCompany_Id(
+                .countByActionAndTicket_Booking_Trip_TransportCompany_IdAndCreatedAtBetween(
                         TicketAuditAction.BOARDING,
-                        companyId
+                        companyId,
+                        resolvedStartAt,
+                        resolvedEndAt
                 );
 
         long successfulBoardings = ticketAuditLogRepository
-                .countByActionAndSuccessAndTicket_Booking_Trip_TransportCompany_Id(
+                .countByActionAndSuccessAndTicket_Booking_Trip_TransportCompany_IdAndCreatedAtBetween(
                         TicketAuditAction.BOARDING,
                         true,
-                        companyId
+                        companyId,
+                        resolvedStartAt,
+                        resolvedEndAt
                 );
 
         long failedBoardings = ticketAuditLogRepository
-                .countByActionAndSuccessAndTicket_Booking_Trip_TransportCompany_Id(
+                .countByActionAndSuccessAndTicket_Booking_Trip_TransportCompany_IdAndCreatedAtBetween(
                         TicketAuditAction.BOARDING,
                         false,
-                        companyId
+                        companyId,
+                        resolvedStartAt,
+                        resolvedEndAt
                 );
 
         return buildResponse(
                 companyId,
                 "COMPANY",
+                resolvedStartAt,
+                resolvedEndAt,
                 totalTickets,
                 validTickets,
                 usedTickets,
@@ -154,9 +220,27 @@ public class OperationalReportService {
         );
     }
 
+    private LocalDateTime resolveStartAt(LocalDateTime startAt) {
+        if (startAt != null) {
+            return startAt;
+        }
+
+        return LocalDateTime.of(1970, 1, 1, 0, 0);
+    }
+
+    private LocalDateTime resolveEndAt(LocalDateTime endAt) {
+        if (endAt != null) {
+            return endAt;
+        }
+
+        return LocalDateTime.now().plusDays(1);
+    }
+
     private OperationalReportResponse buildResponse(
             UUID companyId,
             String scope,
+            LocalDateTime periodStartAt,
+            LocalDateTime periodEndAt,
             long totalTickets,
             long validTickets,
             long usedTickets,
@@ -173,6 +257,8 @@ public class OperationalReportService {
         return new OperationalReportResponse()
                 .setCompanyId(companyId)
                 .setScope(scope)
+                .setPeriodStartAt(periodStartAt)
+                .setPeriodEndAt(periodEndAt)
 
                 .setTotalTickets(totalTickets)
                 .setValidTickets(validTickets)

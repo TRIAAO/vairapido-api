@@ -8,6 +8,9 @@ public class OperationalReportResponse {
     private UUID companyId;
     private String scope;
 
+    private LocalDateTime periodStartAt;
+    private LocalDateTime periodEndAt;
+
     private long totalTickets;
     private long validTickets;
     private long usedTickets;
@@ -40,6 +43,24 @@ public class OperationalReportResponse {
 
     public OperationalReportResponse setScope(String scope) {
         this.scope = scope;
+        return this;
+    }
+
+    public LocalDateTime getPeriodStartAt() {
+        return periodStartAt;
+    }
+
+    public OperationalReportResponse setPeriodStartAt(LocalDateTime periodStartAt) {
+        this.periodStartAt = periodStartAt;
+        return this;
+    }
+
+    public LocalDateTime getPeriodEndAt() {
+        return periodEndAt;
+    }
+
+    public OperationalReportResponse setPeriodEndAt(LocalDateTime periodEndAt) {
+        this.periodEndAt = periodEndAt;
         return this;
     }
 
