@@ -1,0 +1,80 @@
+package com.vairapido.api.dto.admin;
+
+import com.vairapido.api.entity.enums.UserRole;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public class UserAdminResponse {
+
+    private UUID id;
+    private String fullName;
+    private String email;
+    private UserRole role;
+    private Boolean active;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UserAdminResponse setId(UUID id) {
+        this.id = id;
+        return this;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public UserAdminResponse setFullName(String fullName) {
+        this.fullName = fullName;
+        return this;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public UserAdminResponse setEmail(String email) {
+        this.email = email;
+        return this;
+    }
+
+    public UserRole getRole() {
+        return role;
+    }
+
+    public UserAdminResponse setRole(UserRole role) {
+        this.role = role;
+        return this;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public UserAdminResponse setActive(Boolean active) {
+        this.active = active;
+        return this;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public UserAdminResponse setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+        return this;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public UserAdminResponse setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+        return this;
+    }
+}
