@@ -19,4 +19,11 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     boolean existsByBooking_Id(UUID bookingId);
 
     long countByStatus(TicketStatus status);
+
+    long countByBooking_Trip_TransportCompany_Id(UUID companyId);
+
+    long countByStatusAndBooking_Trip_TransportCompany_Id(
+            TicketStatus status,
+            UUID companyId
+    );
 }
