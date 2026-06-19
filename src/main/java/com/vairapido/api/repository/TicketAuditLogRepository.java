@@ -61,4 +61,15 @@ public interface TicketAuditLogRepository extends JpaRepository<TicketAuditLog, 
             LocalDateTime startAt,
             LocalDateTime endAt
     );
+
+    List<TicketAuditLog> findByCreatedAtBetweenOrderByCreatedAtDesc(
+            LocalDateTime startAt,
+            LocalDateTime endAt
+    );
+
+    List<TicketAuditLog> findByTicket_Booking_Trip_TransportCompany_IdAndCreatedAtBetweenOrderByCreatedAtDesc(
+            UUID companyId,
+            LocalDateTime startAt,
+            LocalDateTime endAt
+    );
 }

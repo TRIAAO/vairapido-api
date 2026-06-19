@@ -51,4 +51,15 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
             LocalDateTime startAt,
             LocalDateTime endAt
     );
+
+    List<Ticket> findByIssuedAtBetweenOrderByIssuedAtDesc(
+            LocalDateTime startAt,
+            LocalDateTime endAt
+    );
+
+    List<Ticket> findByBooking_Trip_TransportCompany_IdAndIssuedAtBetweenOrderByIssuedAtDesc(
+            UUID companyId,
+            LocalDateTime startAt,
+            LocalDateTime endAt
+    );
 }

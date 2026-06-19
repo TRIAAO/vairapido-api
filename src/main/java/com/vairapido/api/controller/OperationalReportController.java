@@ -1,7 +1,10 @@
 package com.vairapido.api.controller;
 
 import com.vairapido.api.dto.report.OperationalReportResponse;
+import com.vairapido.api.dto.report.OperationalTicketReportItemResponse;
+import com.vairapido.api.dto.ticketaudit.TicketAuditLogResponse;
 import com.vairapido.api.service.OperationalReportCsvService;
+import com.vairapido.api.service.OperationalReportDetailService;
 import com.vairapido.api.service.OperationalReportService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -23,13 +27,16 @@ public class OperationalReportController {
 
     private final OperationalReportService operationalReportService;
     private final OperationalReportCsvService operationalReportCsvService;
+    private final OperationalReportDetailService operationalReportDetailService;
 
     public OperationalReportController(
             OperationalReportService operationalReportService,
-            OperationalReportCsvService operationalReportCsvService
+            OperationalReportCsvService operationalReportCsvService,
+            OperationalReportDetailService operationalReportDetailService
     ) {
         this.operationalReportService = operationalReportService;
         this.operationalReportCsvService = operationalReportCsvService;
+        this.operationalReportDetailService = operationalReportDetailService;
     }
 
     @GetMapping
@@ -45,6 +52,32 @@ public class OperationalReportController {
         return operationalReportService.getGlobalReport(startAt, endAt);
     }
 
+    @GetMapping("/tickets")
+    public List<OperationalTicketReportItemResponse> getGlobalTickets(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt
+    ) {
+        return operationalReportDetailService.findGlobalTickets(startAt, endAt);
+    }
+
+    @GetMapping("/audit-logs")
+    public List<TicketAuditLogResponse> getGlobalAuditLogs(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt
+    ) {
+        return operationalReportDetailService.findGlobalAuditLogs(startAt, endAt);
+    }
+
     @GetMapping("/company/{companyId}")
     public OperationalReportResponse getCompanyReport(
             @PathVariable UUID companyId,
@@ -58,6 +91,36 @@ public class OperationalReportController {
             LocalDateTime endAt
     ) {
         return operationalReportService.getCompanyReport(companyId, startAt, endAt);
+    }
+
+    @GetMapping("/company/{companyId}/tickets")
+    public List<OperationalTicketReportItemResponse> getCompanyTickets(
+            @PathVariable UUID companyId,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt
+    ) {
+        return operationalReportDetailService.findCompanyTickets(companyId, startAt, endAt);
+    }
+
+    @GetMapping("/company/{companyId}/audit-logs")
+    public List<TicketAuditLogResponse> getCompanyAuditLogs(
+            @PathVariable UUID companyId,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt
+    ) {
+        return operationalReportDetailService.findCompanyAuditLogs(companyId, startAt, endAt);
     }
 
     @GetMapping("/export/csv")
