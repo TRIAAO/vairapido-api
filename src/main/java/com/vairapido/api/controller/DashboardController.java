@@ -2,6 +2,7 @@ package com.vairapido.api.controller;
 
 import com.vairapido.api.dto.dashboard.DashboardSummaryResponse;
 import com.vairapido.api.service.DashboardService;
+import com.vairapido.api.service.MeService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,9 +16,14 @@ import java.util.UUID;
 public class DashboardController {
 
     private final DashboardService service;
+    private final MeService meService;
 
-    public DashboardController(DashboardService service) {
+    public DashboardController(
+            DashboardService service,
+            MeService meService
+    ) {
         this.service = service;
+        this.meService = meService;
     }
 
     @GetMapping("/summary")
@@ -32,5 +38,10 @@ public class DashboardController {
             @PathVariable UUID companyId
     ) {
         return service.getCompanySummary(companyId);
+    }
+
+    @GetMapping("/me/summary")
+    public DashboardSummaryResponse myDashboardSummary() {
+        return meService.getMyDashboardSummary();
     }
 }
