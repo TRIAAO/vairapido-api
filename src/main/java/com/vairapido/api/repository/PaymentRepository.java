@@ -4,6 +4,7 @@ import com.vairapido.api.entity.Payment;
 import com.vairapido.api.entity.enums.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -22,6 +23,23 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     long countByStatus(PaymentStatus status);
 
+    long countByBooking_Trip_TransportCompany_Id(UUID transportCompanyId);
+
+    long countByBooking_Trip_TransportCompany_IdAndStatus(
+            UUID transportCompanyId,
+            PaymentStatus status
+    );
+
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.status = 'PAID'")
     BigDecimal sumPaidAmount();
+
+    @Query("""
+            SELECT COALESCE(SUM(p.amount), 0)
+            FROM Payment p
+            WHERE p.status = 'PAID'
+            AND p.booking.trip.transportCompany.id = :companyId
+            """)
+    BigDecimal sumPaidAmountByCompany(
+            @Param("companyId") UUID companyId
+    );
 }
