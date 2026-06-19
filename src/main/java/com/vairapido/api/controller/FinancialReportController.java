@@ -1,7 +1,10 @@
 package com.vairapido.api.controller;
 
+import com.vairapido.api.dto.report.FinancialBookingReportItemResponse;
 import com.vairapido.api.dto.report.FinancialReportResponse;
 import com.vairapido.api.service.FinancialReportCsvService;
+import com.vairapido.api.service.FinancialReportDetailCsvService;
+import com.vairapido.api.service.FinancialReportDetailService;
 import com.vairapido.api.service.FinancialReportService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -23,13 +27,19 @@ public class FinancialReportController {
 
     private final FinancialReportService financialReportService;
     private final FinancialReportCsvService financialReportCsvService;
+    private final FinancialReportDetailService financialReportDetailService;
+    private final FinancialReportDetailCsvService financialReportDetailCsvService;
 
     public FinancialReportController(
             FinancialReportService financialReportService,
-            FinancialReportCsvService financialReportCsvService
+            FinancialReportCsvService financialReportCsvService,
+            FinancialReportDetailService financialReportDetailService,
+            FinancialReportDetailCsvService financialReportDetailCsvService
     ) {
         this.financialReportService = financialReportService;
         this.financialReportCsvService = financialReportCsvService;
+        this.financialReportDetailService = financialReportDetailService;
+        this.financialReportDetailCsvService = financialReportDetailCsvService;
     }
 
     @GetMapping
@@ -52,6 +62,26 @@ public class FinancialReportController {
         );
     }
 
+    @GetMapping("/bookings")
+    public List<FinancialBookingReportItemResponse> getGlobalFinancialBookings(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt,
+
+            @RequestParam(required = false, defaultValue = "BRL")
+            String currency
+    ) {
+        return financialReportDetailService.findGlobalBookings(
+                startAt,
+                endAt,
+                currency
+        );
+    }
+
     @GetMapping("/company/{companyId}")
     public FinancialReportResponse getCompanyFinancialReport(
             @PathVariable UUID companyId,
@@ -68,6 +98,29 @@ public class FinancialReportController {
             String currency
     ) {
         return financialReportService.getCompanyReport(
+                companyId,
+                startAt,
+                endAt,
+                currency
+        );
+    }
+
+    @GetMapping("/company/{companyId}/bookings")
+    public List<FinancialBookingReportItemResponse> getCompanyFinancialBookings(
+            @PathVariable UUID companyId,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt,
+
+            @RequestParam(required = false, defaultValue = "BRL")
+            String currency
+    ) {
+        return financialReportDetailService.findCompanyBookings(
                 companyId,
                 startAt,
                 endAt,
@@ -129,6 +182,65 @@ public class FinancialReportController {
         return buildCsvResponse(
                 csv,
                 "relatorio-financeiro-empresa-" + companyId + "-" + nowForFileName() + ".csv"
+        );
+    }
+
+    @GetMapping("/bookings/export/csv")
+    public ResponseEntity<byte[]> exportGlobalFinancialBookingsCsv(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt,
+
+            @RequestParam(required = false, defaultValue = "BRL")
+            String currency
+    ) {
+        List<FinancialBookingReportItemResponse> bookings =
+                financialReportDetailService.findGlobalBookings(
+                        startAt,
+                        endAt,
+                        currency
+                );
+
+        byte[] csv = financialReportDetailCsvService.generateBookingsCsv(bookings);
+
+        return buildCsvResponse(
+                csv,
+                "relatorio-financeiro-reservas-global-" + nowForFileName() + ".csv"
+        );
+    }
+
+    @GetMapping("/company/{companyId}/bookings/export/csv")
+    public ResponseEntity<byte[]> exportCompanyFinancialBookingsCsv(
+            @PathVariable UUID companyId,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt,
+
+            @RequestParam(required = false, defaultValue = "BRL")
+            String currency
+    ) {
+        List<FinancialBookingReportItemResponse> bookings =
+                financialReportDetailService.findCompanyBookings(
+                        companyId,
+                        startAt,
+                        endAt,
+                        currency
+                );
+
+        byte[] csv = financialReportDetailCsvService.generateBookingsCsv(bookings);
+
+        return buildCsvResponse(
+                csv,
+                "relatorio-financeiro-reservas-empresa-" + companyId + "-" + nowForFileName() + ".csv"
         );
     }
 
