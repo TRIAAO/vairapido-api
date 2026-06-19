@@ -23,12 +23,17 @@ public class TripReportResponse {
     private LocalDateTime departureAt;
     private LocalDateTime arrivalAt;
 
+    private Integer totalSeats;
+    private Integer availableSeats;
+    private Integer occupiedSeats;
+
     private String currency;
 
     private long totalBookings;
     private long paidBookings;
     private long pendingBookings;
     private long cancelledBookings;
+    private long expiredBookings;
 
     private long issuedTickets;
     private long validTickets;
@@ -37,6 +42,8 @@ public class TripReportResponse {
 
     private BigDecimal totalRevenue;
     private BigDecimal averageTicketAmount;
+    private BigDecimal occupancyRatePercentage;
+    private BigDecimal checkInRatePercentage;
 
     private LocalDateTime generatedAt;
 
@@ -148,6 +155,33 @@ public class TripReportResponse {
         return this;
     }
 
+    public Integer getTotalSeats() {
+        return totalSeats;
+    }
+
+    public TripReportResponse setTotalSeats(Integer totalSeats) {
+        this.totalSeats = totalSeats;
+        return this;
+    }
+
+    public Integer getAvailableSeats() {
+        return availableSeats;
+    }
+
+    public TripReportResponse setAvailableSeats(Integer availableSeats) {
+        this.availableSeats = availableSeats;
+        return this;
+    }
+
+    public Integer getOccupiedSeats() {
+        return occupiedSeats;
+    }
+
+    public TripReportResponse setOccupiedSeats(Integer occupiedSeats) {
+        this.occupiedSeats = occupiedSeats;
+        return this;
+    }
+
     public String getCurrency() {
         return currency;
     }
@@ -190,6 +224,15 @@ public class TripReportResponse {
 
     public TripReportResponse setCancelledBookings(long cancelledBookings) {
         this.cancelledBookings = cancelledBookings;
+        return this;
+    }
+
+    public long getExpiredBookings() {
+        return expiredBookings;
+    }
+
+    public TripReportResponse setExpiredBookings(long expiredBookings) {
+        this.expiredBookings = expiredBookings;
         return this;
     }
 
@@ -244,6 +287,24 @@ public class TripReportResponse {
 
     public TripReportResponse setAverageTicketAmount(BigDecimal averageTicketAmount) {
         this.averageTicketAmount = averageTicketAmount;
+        return this;
+    }
+
+    public BigDecimal getOccupancyRatePercentage() {
+        return occupancyRatePercentage;
+    }
+
+    public TripReportResponse setOccupancyRatePercentage(BigDecimal occupancyRatePercentage) {
+        this.occupancyRatePercentage = occupancyRatePercentage;
+        return this;
+    }
+
+    public BigDecimal getCheckInRatePercentage() {
+        return checkInRatePercentage;
+    }
+
+    public TripReportResponse setCheckInRatePercentage(BigDecimal checkInRatePercentage) {
+        this.checkInRatePercentage = checkInRatePercentage;
         return this;
     }
 

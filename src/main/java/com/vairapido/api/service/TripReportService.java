@@ -38,20 +38,29 @@ public class TripReportService {
         String resolvedCurrency = resolveCurrency(currency);
 
         long totalBookings = countBookings(tripId, resolvedCurrency);
+
         long paidBookings = countBookingsByStatuses(
                 tripId,
                 resolvedCurrency,
                 List.of(BookingStatus.PAID, BookingStatus.TICKET_ISSUED)
         );
+
         long pendingBookings = countBookingsByStatuses(
                 tripId,
                 resolvedCurrency,
                 List.of(BookingStatus.PENDING_PAYMENT)
         );
+
         long cancelledBookings = countBookingsByStatuses(
                 tripId,
                 resolvedCurrency,
                 List.of(BookingStatus.CANCELLED)
+        );
+
+        long expiredBookings = countBookingsByStatuses(
+                tripId,
+                resolvedCurrency,
+                List.of(BookingStatus.EXPIRED)
         );
 
         long issuedTickets = countTickets(tripId);
@@ -61,6 +70,16 @@ public class TripReportService {
 
         BigDecimal totalRevenue = sumRevenue(tripId, resolvedCurrency);
         BigDecimal averageTicketAmount = calculateAverage(totalRevenue, paidBookings);
+
+        Integer totalSeats = trip.getTotalSeats();
+        Integer availableSeats = trip.getAvailableSeats();
+        Integer occupiedSeats = calculateOccupiedSeats(totalSeats, availableSeats);
+
+        BigDecimal occupancyRatePercentage =
+                calculatePercentage(occupiedSeats, totalSeats);
+
+        BigDecimal checkInRatePercentage =
+                calculatePercentage(usedTickets, issuedTickets);
 
         TransportCompany company = trip.getTransportCompany();
         TravelRoute route = trip.getRoute();
@@ -83,12 +102,17 @@ public class TripReportService {
                 .setDepartureAt(trip.getDepartureAt())
                 .setArrivalAt(trip.getArrivalAt())
 
+                .setTotalSeats(totalSeats)
+                .setAvailableSeats(availableSeats)
+                .setOccupiedSeats(occupiedSeats)
+
                 .setCurrency(resolvedCurrency)
 
                 .setTotalBookings(totalBookings)
                 .setPaidBookings(paidBookings)
                 .setPendingBookings(pendingBookings)
                 .setCancelledBookings(cancelledBookings)
+                .setExpiredBookings(expiredBookings)
 
                 .setIssuedTickets(issuedTickets)
                 .setValidTickets(validTickets)
@@ -97,6 +121,8 @@ public class TripReportService {
 
                 .setTotalRevenue(totalRevenue)
                 .setAverageTicketAmount(averageTicketAmount)
+                .setOccupancyRatePercentage(occupancyRatePercentage)
+                .setCheckInRatePercentage(checkInRatePercentage)
 
                 .setGeneratedAt(LocalDateTime.now());
     }
@@ -136,10 +162,6 @@ public class TripReportService {
         }
 
         return trip;
-    }
-
-    private long countBookings(String tripId, String currency) {
-        return countBookings(UUID.fromString(tripId), currency);
     }
 
     private long countBookings(UUID tripId, String currency) {
@@ -238,6 +260,30 @@ public class TripReportService {
                 2,
                 RoundingMode.HALF_UP
         );
+    }
+
+    private BigDecimal calculatePercentage(long numerator, long denominator) {
+        if (denominator <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        return BigDecimal.valueOf(numerator)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(
+                        BigDecimal.valueOf(denominator),
+                        2,
+                        RoundingMode.HALF_UP
+                );
+    }
+
+    private Integer calculateOccupiedSeats(Integer totalSeats, Integer availableSeats) {
+        if (totalSeats == null || availableSeats == null) {
+            return 0;
+        }
+
+        int occupied = totalSeats - availableSeats;
+
+        return Math.max(occupied, 0);
     }
 
     private TripTicketReportItemResponse toTicketItemResponse(Ticket ticket) {

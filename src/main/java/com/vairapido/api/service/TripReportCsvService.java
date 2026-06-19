@@ -42,17 +42,24 @@ public class TripReportCsvService {
         appendFieldRow(csv, "Partida", formatDate(report.getDepartureAt()));
         appendFieldRow(csv, "Chegada", formatDate(report.getArrivalAt()));
 
+        appendFieldRow(csv, "Total de assentos", value(report.getTotalSeats()));
+        appendFieldRow(csv, "Assentos disponíveis", value(report.getAvailableSeats()));
+        appendFieldRow(csv, "Assentos ocupados", value(report.getOccupiedSeats()));
+        appendFieldRow(csv, "Taxa de ocupação (%)", value(report.getOccupancyRatePercentage()));
+
         appendFieldRow(csv, "Moeda", report.getCurrency());
 
         appendFieldRow(csv, "Total de reservas", value(report.getTotalBookings()));
         appendFieldRow(csv, "Reservas pagas", value(report.getPaidBookings()));
         appendFieldRow(csv, "Reservas pendentes", value(report.getPendingBookings()));
         appendFieldRow(csv, "Reservas canceladas", value(report.getCancelledBookings()));
+        appendFieldRow(csv, "Reservas expiradas", value(report.getExpiredBookings()));
 
         appendFieldRow(csv, "Bilhetes emitidos", value(report.getIssuedTickets()));
         appendFieldRow(csv, "Bilhetes válidos", value(report.getValidTickets()));
         appendFieldRow(csv, "Bilhetes usados", value(report.getUsedTickets()));
         appendFieldRow(csv, "Bilhetes cancelados", value(report.getCancelledTickets()));
+        appendFieldRow(csv, "Check-in realizado (%)", value(report.getCheckInRatePercentage()));
 
         appendFieldRow(csv, "Receita total", value(report.getTotalRevenue()));
         appendFieldRow(csv, "Ticket médio", value(report.getAverageTicketAmount()));

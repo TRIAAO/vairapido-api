@@ -55,6 +55,14 @@ public class FinancialReportService {
                 null
         );
 
+        long expiredBookings = countBookingsByStatus(
+                BookingStatus.EXPIRED,
+                resolvedStartAt,
+                resolvedEndAt,
+                resolvedCurrency,
+                null
+        );
+
         long issuedTickets = countIssuedTickets(
                 resolvedStartAt,
                 resolvedEndAt,
@@ -82,6 +90,7 @@ public class FinancialReportService {
                 paidBookings,
                 pendingBookings,
                 cancelledBookings,
+                expiredBookings,
                 issuedTickets,
                 totalRevenue,
                 averageTicketAmount
@@ -122,6 +131,14 @@ public class FinancialReportService {
                 companyId
         );
 
+        long expiredBookings = countBookingsByStatus(
+                BookingStatus.EXPIRED,
+                resolvedStartAt,
+                resolvedEndAt,
+                resolvedCurrency,
+                companyId
+        );
+
         long issuedTickets = countIssuedTickets(
                 resolvedStartAt,
                 resolvedEndAt,
@@ -149,6 +166,7 @@ public class FinancialReportService {
                 paidBookings,
                 pendingBookings,
                 cancelledBookings,
+                expiredBookings,
                 issuedTickets,
                 totalRevenue,
                 averageTicketAmount
@@ -335,6 +353,7 @@ public class FinancialReportService {
             long paidBookings,
             long pendingBookings,
             long cancelledBookings,
+            long expiredBookings,
             long issuedTickets,
             BigDecimal totalRevenue,
             BigDecimal averageTicketAmount
@@ -348,6 +367,7 @@ public class FinancialReportService {
                 .setPaidBookings(paidBookings)
                 .setPendingBookings(pendingBookings)
                 .setCancelledBookings(cancelledBookings)
+                .setExpiredBookings(expiredBookings)
                 .setIssuedTickets(issuedTickets)
                 .setTotalRevenue(totalRevenue)
                 .setAverageTicketAmount(averageTicketAmount)

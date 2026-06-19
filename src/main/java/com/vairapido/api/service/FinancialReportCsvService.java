@@ -1,4 +1,3 @@
-
 package com.vairapido.api.service;
 
 import com.vairapido.api.dto.report.FinancialReportResponse;
@@ -29,6 +28,7 @@ public class FinancialReportCsvService {
         appendRow(csv, "Reservas pagas", String.valueOf(report.getPaidBookings()));
         appendRow(csv, "Reservas pendentes", String.valueOf(report.getPendingBookings()));
         appendRow(csv, "Reservas canceladas", String.valueOf(report.getCancelledBookings()));
+        appendRow(csv, "Reservas expiradas", String.valueOf(report.getExpiredBookings()));
         appendRow(csv, "Bilhetes emitidos", String.valueOf(report.getIssuedTickets()));
 
         appendRow(csv, "Total vendido", value(report.getTotalRevenue()));

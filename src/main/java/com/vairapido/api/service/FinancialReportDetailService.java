@@ -92,11 +92,7 @@ public class FinancialReportDetailService {
                             AND b.paidAt BETWEEN :startAt AND :endAt
                         )
                         OR (
-                            b.status = :pendingStatus
-                            AND b.createdAt BETWEEN :startAt AND :endAt
-                        )
-                        OR (
-                            b.status = :cancelledStatus
+                            b.status IN :createdAtStatuses
                             AND b.createdAt BETWEEN :startAt AND :endAt
                         )
                   )
@@ -114,8 +110,11 @@ public class FinancialReportDetailService {
                         BookingStatus.PAID,
                         BookingStatus.TICKET_ISSUED
                 ))
-                .setParameter("pendingStatus", BookingStatus.PENDING_PAYMENT)
-                .setParameter("cancelledStatus", BookingStatus.CANCELLED)
+                .setParameter("createdAtStatuses", List.of(
+                        BookingStatus.PENDING_PAYMENT,
+                        BookingStatus.CANCELLED,
+                        BookingStatus.EXPIRED
+                ))
                 .setParameter("startAt", startAt)
                 .setParameter("endAt", endAt);
 

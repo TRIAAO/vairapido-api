@@ -16,6 +16,7 @@ public class FinancialReportResponse {
     private long paidBookings;
     private long pendingBookings;
     private long cancelledBookings;
+    private long expiredBookings;
     private long issuedTickets;
 
     private BigDecimal totalRevenue;
@@ -92,6 +93,15 @@ public class FinancialReportResponse {
 
     public FinancialReportResponse setCancelledBookings(long cancelledBookings) {
         this.cancelledBookings = cancelledBookings;
+        return this;
+    }
+
+    public long getExpiredBookings() {
+        return expiredBookings;
+    }
+
+    public FinancialReportResponse setExpiredBookings(long expiredBookings) {
+        this.expiredBookings = expiredBookings;
         return this;
     }
 
