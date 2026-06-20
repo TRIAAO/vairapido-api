@@ -1,0 +1,94 @@
+package com.vairapido.api.dto.whatsappwebhook;
+
+import com.vairapido.api.entity.enums.WhatsappConversationStep;
+import com.vairapido.api.entity.enums.WhatsappSessionType;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public class WhatsappWebhookReceiveResponse {
+
+    private Boolean processed;
+    private String reason;
+
+    private String phoneNumber;
+    private String messageText;
+    private WhatsappSessionType sessionType;
+
+    private UUID sessionId;
+    private WhatsappConversationStep currentStep;
+
+    private LocalDateTime receivedAt;
+
+    public Boolean getProcessed() {
+        return processed;
+    }
+
+    public WhatsappWebhookReceiveResponse setProcessed(Boolean processed) {
+        this.processed = processed;
+        return this;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public WhatsappWebhookReceiveResponse setReason(String reason) {
+        this.reason = reason;
+        return this;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public WhatsappWebhookReceiveResponse setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+        return this;
+    }
+
+    public String getMessageText() {
+        return messageText;
+    }
+
+    public WhatsappWebhookReceiveResponse setMessageText(String messageText) {
+        this.messageText = messageText;
+        return this;
+    }
+
+    public WhatsappSessionType getSessionType() {
+        return sessionType;
+    }
+
+    public WhatsappWebhookReceiveResponse setSessionType(WhatsappSessionType sessionType) {
+        this.sessionType = sessionType;
+        return this;
+    }
+
+    public UUID getSessionId() {
+        return sessionId;
+    }
+
+    public WhatsappWebhookReceiveResponse setSessionId(UUID sessionId) {
+        this.sessionId = sessionId;
+        return this;
+    }
+
+    public WhatsappConversationStep getCurrentStep() {
+        return currentStep;
+    }
+
+    public WhatsappWebhookReceiveResponse setCurrentStep(WhatsappConversationStep currentStep) {
+        this.currentStep = currentStep;
+        return this;
+    }
+
+    public LocalDateTime getReceivedAt() {
+        return receivedAt;
+    }
+
+    public WhatsappWebhookReceiveResponse setReceivedAt(LocalDateTime receivedAt) {
+        this.receivedAt = receivedAt;
+        return this;
+    }
+}
