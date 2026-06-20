@@ -4,17 +4,31 @@ import com.vairapido.api.dto.dashboard.DashboardSummaryResponse;
 import com.vairapido.api.dto.publicticket.TicketValidationResponse;
 import com.vairapido.api.dto.whatsappcommand.WhatsappCommandResult;
 import com.vairapido.api.dto.whatsappsession.WhatsappSessionResponse;
+import com.vairapido.api.entity.TransportCompany;
+import com.vairapido.api.entity.TravelRoute;
+import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.User;
+import com.vairapido.api.entity.WhatsappSession;
+import com.vairapido.api.entity.enums.TripStatus;
 import com.vairapido.api.entity.enums.UserRole;
 import com.vairapido.api.entity.enums.UserStatus;
+import com.vairapido.api.entity.enums.WhatsappConversationStep;
 import com.vairapido.api.entity.enums.WhatsappSessionType;
+import com.vairapido.api.repository.TripRepository;
 import com.vairapido.api.repository.UserRepository;
+import com.vairapido.api.repository.WhatsappSessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -26,21 +40,33 @@ public class WhatsappCommandService {
     private static final DateTimeFormatter DATE_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private static final Pattern TICKET_CODE_PATTERN =
             Pattern.compile("(VRTK-[A-Z0-9\\-]+|VRTK\\s*[A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern TRIP_SEARCH_DATE_PATTERN =
+            Pattern.compile("(\\d{2}[/-]\\d{2}[/-]\\d{4})");
 
     private final UserRepository userRepository;
     private final DashboardService dashboardService;
     private final PublicTicketValidationService publicTicketValidationService;
+    private final TripRepository tripRepository;
+    private final WhatsappSessionRepository whatsappSessionRepository;
 
     public WhatsappCommandService(
             UserRepository userRepository,
             DashboardService dashboardService,
-            PublicTicketValidationService publicTicketValidationService
+            PublicTicketValidationService publicTicketValidationService,
+            TripRepository tripRepository,
+            WhatsappSessionRepository whatsappSessionRepository
     ) {
         this.userRepository = userRepository;
         this.dashboardService = dashboardService;
         this.publicTicketValidationService = publicTicketValidationService;
+        this.tripRepository = tripRepository;
+        this.whatsappSessionRepository = whatsappSessionRepository;
     }
 
     @Transactional
@@ -68,6 +94,14 @@ public class WhatsappCommandService {
 
         if (isBuyTicketCommand(normalizedMessage)) {
             return buyTicket(session);
+        }
+
+        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
+            TripSearchInput tripSearchInput = parseTripSearch(messageText);
+
+            if (tripSearchInput != null) {
+                return searchTripsForPassenger(session, tripSearchInput);
+            }
         }
 
         return fallback(session);
@@ -216,6 +250,12 @@ public class WhatsappCommandService {
             );
         }
 
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.PASSENGER_IDENTIFICATION,
+                "buy_ticket_started=true"
+        );
+
         String nameLine = session.getPassengerFullName() != null
                 ? "Olá, " + session.getPassengerFullName() + ".\n"
                 : "Olá. Vamos iniciar sua compra.\n";
@@ -233,9 +273,131 @@ public class WhatsappCommandService {
                 Origem: São Paulo
                 Destino: Rio de Janeiro
                 Data: 25/06/2026
+
+                Ou envie em duas linhas:
+                São Paulo
+                Rio de Janeiro 25/06/2026
                 """;
 
         return allowed("BUY_TICKET", reply.trim());
+    }
+
+    private WhatsappCommandResult searchTripsForPassenger(
+            WhatsappSessionResponse session,
+            TripSearchInput input
+    ) {
+        LocalDateTime startDateTime = input.date().atStartOfDay();
+        LocalDateTime endDateTime = input.date().plusDays(1).atStartOfDay();
+
+        List<Trip> trips = tripRepository.searchAvailableTrips(
+                input.origin(),
+                input.destination(),
+                startDateTime,
+                endDateTime,
+                TripStatus.SCHEDULED
+        );
+
+        List<Trip> options = trips.stream()
+                .sorted(Comparator.comparing(Trip::getDepartureAt))
+                .limit(5)
+                .toList();
+
+        if (options.isEmpty()) {
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.PASSENGER_IDENTIFICATION,
+                    buildTripSearchMetadata(input, options)
+            );
+
+            String reply = """
+                    Não encontrei viagens disponíveis para:
+
+                    Origem: %s
+                    Destino: %s
+                    Data: %s
+
+                    Tente novamente com outro destino, outra data ou envie no formato:
+
+                    Origem: São Paulo
+                    Destino: Rio de Janeiro
+                    Data: 25/06/2026
+                    """.formatted(
+                    input.origin(),
+                    input.destination(),
+                    input.date().format(DATE_FORMATTER)
+            );
+
+            return allowed("SEARCH_TRIPS", reply.trim());
+        }
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CHOOSING_TRIP,
+                buildTripSearchMetadata(input, options)
+        );
+
+        StringBuilder reply = new StringBuilder();
+
+        reply.append("Encontrei viagens disponíveis:\n\n");
+
+        for (int i = 0; i < options.size(); i++) {
+            Trip trip = options.get(i);
+            reply.append(formatTripOption(i + 1, trip)).append("\n\n");
+        }
+
+        reply.append("Para escolher, responda com:\n");
+        reply.append("Viagem 1\n\n");
+        reply.append("Se quiser mudar a busca, envie novamente origem, destino e data.");
+
+        return allowed("SEARCH_TRIPS", reply.toString().trim());
+    }
+
+    private String formatTripOption(int optionNumber, Trip trip) {
+        TravelRoute route = trip.getRoute();
+        TransportCompany company = trip.getTransportCompany();
+
+        String companyName = "-";
+
+        if (company != null) {
+            companyName = company.getTradeName() != null && !company.getTradeName().isBlank()
+                    ? company.getTradeName()
+                    : company.getName();
+        }
+
+        String origin = route != null ? route.getOriginCity() : "-";
+        String destination = route != null ? route.getDestinationCity() : "-";
+        String departure = trip.getDepartureAt() != null
+                ? trip.getDepartureAt().format(DATE_TIME_FORMATTER)
+                : "-";
+
+        String currency = trip.getCurrency() != null && !trip.getCurrency().isBlank()
+                ? trip.getCurrency()
+                : "BRL";
+
+        String price = trip.getPrice() != null
+                ? trip.getPrice().toPlainString()
+                : "0.00";
+
+        Integer availableSeats = trip.getAvailableSeats() != null
+                ? trip.getAvailableSeats()
+                : 0;
+
+        return """
+                %d. %s
+                Trecho: %s → %s
+                Saída: %s
+                Preço: %s %s
+                Lugares disponíveis: %d
+                """.formatted(
+                optionNumber,
+                companyName,
+                origin,
+                destination,
+                departure,
+                currency,
+                price,
+                availableSeats
+        ).trim();
     }
 
     private WhatsappCommandResult menu(WhatsappSessionResponse session) {
@@ -290,12 +452,175 @@ public class WhatsappCommandService {
                 """
                 Não entendi sua mensagem.
 
-                Tente uma destas opções:
-                - Comprar passagem
-                - Menu
-                - Ajuda
+                Para comprar passagem, envie:
+                Comprar passagem
+
+                Ou envie direto no formato:
+                Origem: São Paulo
+                Destino: Rio de Janeiro
+                Data: 25/06/2026
                 """
         );
+    }
+
+    private TripSearchInput parseTripSearch(String messageText) {
+        if (messageText == null || messageText.isBlank()) {
+            return null;
+        }
+
+        LocalDate date = extractSearchDate(messageText);
+
+        if (date == null) {
+            return null;
+        }
+
+        String origin = extractLabeledValue(messageText, "origem");
+        String destination = extractLabeledValue(messageText, "destino");
+
+        if (isFilled(origin) && isFilled(destination)) {
+            return new TripSearchInput(
+                    cleanSearchTerm(origin),
+                    cleanSearchTerm(destination),
+                    date
+            );
+        }
+
+        List<String> lines = extractMeaningfulLinesWithoutDate(messageText);
+
+        if (lines.size() < 2) {
+            return null;
+        }
+
+        origin = cleanSearchTerm(lines.get(0));
+        destination = cleanSearchTerm(lines.get(1));
+
+        if (!isFilled(origin) || !isFilled(destination)) {
+            return null;
+        }
+
+        return new TripSearchInput(origin, destination, date);
+    }
+
+    private LocalDate extractSearchDate(String messageText) {
+        Matcher matcher = TRIP_SEARCH_DATE_PATTERN.matcher(messageText);
+
+        if (!matcher.find()) {
+            return null;
+        }
+
+        String rawDate = matcher.group(1).replace("-", "/");
+
+        try {
+            return LocalDate.parse(rawDate, DATE_FORMATTER);
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
+    }
+
+    private String extractLabeledValue(String messageText, String label) {
+        for (String line : splitLines(messageText)) {
+            String normalizedLine = normalizeText(line);
+
+            if (!normalizedLine.startsWith(label)) {
+                continue;
+            }
+
+            String value = line.replaceFirst("(?iu)^\\s*" + label + "\\s*:?\\s*", "");
+
+            if (isFilled(value)) {
+                return value.trim();
+            }
+        }
+
+        return null;
+    }
+
+    private List<String> extractMeaningfulLinesWithoutDate(String messageText) {
+        String withoutDate = TRIP_SEARCH_DATE_PATTERN
+                .matcher(messageText)
+                .replaceAll("");
+
+        List<String> lines = new ArrayList<>();
+
+        for (String line : splitLines(withoutDate)) {
+            String cleaned = line
+                    .replaceFirst("(?iu)^\\s*origem\\s*:?\\s*", "")
+                    .replaceFirst("(?iu)^\\s*destino\\s*:?\\s*", "")
+                    .replaceFirst("(?iu)^\\s*data\\s*:?\\s*", "")
+                    .trim();
+
+            if (isFilled(cleaned)) {
+                lines.add(cleaned);
+            }
+        }
+
+        return lines;
+    }
+
+    private String[] splitLines(String text) {
+        return text
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
+                .split("\n");
+    }
+
+    private String cleanSearchTerm(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        return value
+                .replace(";", "")
+                .replace("\"", "")
+                .trim();
+    }
+
+    private void updateSessionStep(
+            WhatsappSessionResponse session,
+            WhatsappConversationStep step,
+            String metadata
+    ) {
+        if (session == null || session.getId() == null) {
+            return;
+        }
+
+        Optional<WhatsappSession> optionalSession =
+                whatsappSessionRepository.findById(session.getId());
+
+        if (optionalSession.isEmpty()) {
+            return;
+        }
+
+        WhatsappSession whatsappSession = optionalSession.get();
+
+        whatsappSession
+                .setCurrentStep(step)
+                .setMetadata(metadata);
+
+        whatsappSessionRepository.save(whatsappSession);
+    }
+
+    private String buildTripSearchMetadata(
+            TripSearchInput input,
+            List<Trip> options
+    ) {
+        StringBuilder metadata = new StringBuilder();
+
+        metadata.append("flow=BUY_TICKET\n");
+        metadata.append("origin=").append(input.origin()).append("\n");
+        metadata.append("destination=").append(input.destination()).append("\n");
+        metadata.append("date=").append(input.date().format(DATE_FORMATTER)).append("\n");
+
+        for (int i = 0; i < options.size(); i++) {
+            metadata
+                    .append("option_")
+                    .append(i + 1)
+                    .append("=")
+                    .append(options.get(i).getId())
+                    .append("\n");
+        }
+
+        return metadata.toString().trim();
     }
 
     private boolean isAllowedToValidateTickets(WhatsappSessionResponse session) {
@@ -381,6 +706,10 @@ public class WhatsappCommandService {
                 .trim();
     }
 
+    private boolean isFilled(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private String safe(String value) {
         return value == null || value.isBlank() ? "-" : value;
     }
@@ -413,5 +742,12 @@ public class WhatsappCommandService {
                 .setAllowed(false)
                 .setCommandName(commandName)
                 .setReplyMessage(replyMessage);
+    }
+
+    private record TripSearchInput(
+            String origin,
+            String destination,
+            LocalDate date
+    ) {
     }
 }

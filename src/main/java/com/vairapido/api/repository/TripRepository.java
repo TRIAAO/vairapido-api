@@ -30,4 +30,31 @@ public interface TripRepository extends JpaRepository<Trip, UUID> {
     long countDistinctRoutesByTransportCompanyId(
             @Param("companyId") UUID companyId
     );
+
+    @Query("""
+            SELECT t
+            FROM Trip t
+            JOIN FETCH t.route r
+            JOIN FETCH t.transportCompany c
+            WHERE t.status = :status
+              AND t.departureAt >= :startDateTime
+              AND t.departureAt < :endDateTime
+              AND t.availableSeats > 0
+              AND (
+                    LOWER(r.originCity) LIKE LOWER(CONCAT('%', :origin, '%'))
+                    OR LOWER(COALESCE(r.originState, '')) LIKE LOWER(CONCAT('%', :origin, '%'))
+                  )
+              AND (
+                    LOWER(r.destinationCity) LIKE LOWER(CONCAT('%', :destination, '%'))
+                    OR LOWER(COALESCE(r.destinationState, '')) LIKE LOWER(CONCAT('%', :destination, '%'))
+                  )
+            ORDER BY t.departureAt ASC
+            """)
+    List<Trip> searchAvailableTrips(
+            @Param("origin") String origin,
+            @Param("destination") String destination,
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("endDateTime") LocalDateTime endDateTime,
+            @Param("status") TripStatus status
+    );
 }
