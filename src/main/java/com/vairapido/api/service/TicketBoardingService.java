@@ -56,12 +56,14 @@ public class TicketBoardingService {
                     null
             );
         } catch (RuntimeException exception) {
+            boolean alreadyBoarded = ticket.getStatus() == TicketStatus.USED;
+
             return toBoardingResponse(
                     ticket,
-                    false,
+                    alreadyBoarded,
                     false,
                     exception.getMessage(),
-                    null
+                    alreadyBoarded ? ticket.getUsedAt() : null
             );
         }
     }
@@ -276,7 +278,7 @@ public class TicketBoardingService {
             boolean canBoard,
             String message
     ) {
-        if (boarded) {
+        if (boarded && "Embarque confirmado com sucesso.".equals(message)) {
             response
                     .setBoardingStatusIcon("✅")
                     .setBoardingStatusTitle("Embarque confirmado")
