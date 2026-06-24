@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.text.Normalizer;
 import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -83,7 +84,7 @@ public class TicketPdfService {
                 drawSuccessBanner(content);
                 drawTicketMeta(content, ticket, booking, company);
                 drawRouteSection(content, route, trip, booking);
-                drawPassengerCard(content, passenger);
+                drawPassengerCard(content, passenger, route);
                 drawQrCard(content, qrImage);
                 drawSummaryStrip(content, booking, company, route);
                 drawBoardingWarning(content);
@@ -320,7 +321,8 @@ public class TicketPdfService {
 
     private void drawPassengerCard(
             PDPageContentStream content,
-            Passenger passenger
+            Passenger passenger,
+            TravelRoute route
     ) throws IOException {
         float x = 45;
         float y = 270;
@@ -346,13 +348,13 @@ public class TicketPdfService {
         content.showText("PASSAGEIRO");
         content.endText();
 
-        PassengerDocumentType documentType = getPassengerDocumentType(passenger);
+        PassengerDocumentType documentType = getPassengerDocumentType(passenger, route);
         String documentLabel = documentValidatorService.label(documentType);
-        String documentNumber = documentValidatorService.normalize(documentType, passenger.getDocumentNumber());
+        String documentNumber = safePassengerDocument(passenger, documentType);
 
-        drawPassengerLine(content, "NOME COMPLETO", passenger.getFullName(), x + 18, y + 135);
+        drawPassengerLine(content, "NOME COMPLETO", passenger != null ? passenger.getFullName() : "-", x + 18, y + 135);
         drawPassengerLine(content, documentLabel, documentNumber, x + 18, y + 95);
-        drawPassengerLine(content, "TELEFONE / WHATSAPP", passenger.getWhatsapp(), x + 18, y + 55);
+        drawPassengerLine(content, "TELEFONE / WHATSAPP", passenger != null ? passenger.getWhatsapp() : "-", x + 18, y + 55);
         drawPassengerLine(content, "TIPO DE PASSAGEIRO", "Adulto", x + 18, y + 18);
     }
 
@@ -636,12 +638,108 @@ public class TicketPdfService {
         content.endText();
     }
 
-    private PassengerDocumentType getPassengerDocumentType(Passenger passenger) {
+    private PassengerDocumentType getPassengerDocumentType(Passenger passenger, TravelRoute route) {
+        String originCountry = resolveCountryByCity(route != null ? route.getOriginCity() : null);
+        String destinationCountry = resolveCountryByCity(route != null ? route.getDestinationCity() : null);
+
+        if ("AO".equals(originCountry) || "AO".equals(destinationCountry)) {
+            return PassengerDocumentType.BI;
+        }
+
+        if ("BR".equals(originCountry) || "BR".equals(destinationCountry)) {
+            return PassengerDocumentType.CPF;
+        }
+
         if (passenger == null || passenger.getDocumentType() == null) {
             return documentValidatorService.defaultDocumentType();
         }
 
         return passenger.getDocumentType();
+    }
+
+    private String safePassengerDocument(Passenger passenger, PassengerDocumentType documentType) {
+        if (passenger == null || passenger.getDocumentNumber() == null || passenger.getDocumentNumber().isBlank()) {
+            return "-";
+        }
+
+        try {
+            return documentValidatorService.normalize(documentType, passenger.getDocumentNumber());
+        } catch (RuntimeException exception) {
+            return safeText(passenger.getDocumentNumber());
+        }
+    }
+
+    private String resolveCountryByCity(String city) {
+        String normalized = normalizeCity(city);
+
+        if (normalized.isBlank()) {
+            return null;
+        }
+
+        if (isAngolaCity(normalized)) {
+            return "AO";
+        }
+
+        if (isBrazilCity(normalized)) {
+            return "BR";
+        }
+
+        return null;
+    }
+
+    private boolean isAngolaCity(String normalizedCity) {
+        return normalizedCity.equals("luanda")
+                || normalizedCity.equals("caxito")
+                || normalizedCity.equals("benguela")
+                || normalizedCity.equals("lobito")
+                || normalizedCity.equals("cuito")
+                || normalizedCity.equals("cabinda")
+                || normalizedCity.equals("menongue")
+                || normalizedCity.equals("ndalatando")
+                || normalizedCity.equals("sumbe")
+                || normalizedCity.equals("ondjiva")
+                || normalizedCity.equals("huambo")
+                || normalizedCity.equals("lubango")
+                || normalizedCity.equals("dundo")
+                || normalizedCity.equals("saurimo")
+                || normalizedCity.equals("malanje")
+                || normalizedCity.equals("luena")
+                || normalizedCity.equals("mocamedes")
+                || normalizedCity.equals("namibe")
+                || normalizedCity.equals("uige")
+                || normalizedCity.equals("mbanza kongo")
+                || normalizedCity.equals("soyo");
+    }
+
+    private boolean isBrazilCity(String normalizedCity) {
+        return normalizedCity.equals("sao paulo")
+                || normalizedCity.equals("rio de janeiro")
+                || normalizedCity.equals("campinas")
+                || normalizedCity.equals("belo horizonte")
+                || normalizedCity.equals("curitiba")
+                || normalizedCity.equals("brasilia")
+                || normalizedCity.equals("salvador")
+                || normalizedCity.equals("fortaleza")
+                || normalizedCity.equals("recife")
+                || normalizedCity.equals("porto alegre")
+                || normalizedCity.equals("goiania")
+                || normalizedCity.equals("manaus")
+                || normalizedCity.equals("florianopolis");
+    }
+
+    private String normalizeCity(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+
+        String normalized = Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+
+        return normalized
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9\\s]", "")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private String getCompanyName(TransportCompany company) {
