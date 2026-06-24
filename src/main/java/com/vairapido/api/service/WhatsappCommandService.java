@@ -1,5 +1,7 @@
 package com.vairapido.api.service;
 
+import com.vairapido.api.dto.multicountry.CountryResolutionResponse;
+import com.vairapido.api.service.multicountry.CountryResolverService;
 import com.vairapido.api.dto.booking.BookingRequest;
 import com.vairapido.api.dto.booking.BookingResponse;
 import com.vairapido.api.dto.dashboard.DashboardSummaryResponse;
@@ -84,6 +86,7 @@ public class WhatsappCommandService {
     private final TicketRepository ticketRepository;
     private final WhatsappFaqAnswerService whatsappFaqAnswerService;
     private final DocumentValidatorService documentValidatorService;
+    private final CountryResolverService countryResolverService;
 
     public WhatsappCommandService(
             UserRepository userRepository,
@@ -98,7 +101,8 @@ public class WhatsappCommandService {
             TicketService ticketService,
             TicketRepository ticketRepository,
             WhatsappFaqAnswerService whatsappFaqAnswerService,
-            DocumentValidatorService documentValidatorService) {
+            DocumentValidatorService documentValidatorService,
+            CountryResolverService countryResolverService) {
         this.userRepository = userRepository;
         this.dashboardService = dashboardService;
         this.publicTicketValidationService = publicTicketValidationService;
@@ -112,6 +116,7 @@ public class WhatsappCommandService {
         this.ticketRepository = ticketRepository;
         this.whatsappFaqAnswerService = whatsappFaqAnswerService;
         this.documentValidatorService = documentValidatorService;
+        this.countryResolverService = countryResolverService;
     }
 
     @Transactional
@@ -368,6 +373,37 @@ public class WhatsappCommandService {
     private WhatsappCommandResult searchTripsForPassenger(
             WhatsappSessionResponse session,
             TripSearchInput input) {
+
+        CountryResolutionResponse countryResolution = countryResolverService.resolveByCities(
+                input.origin(),
+                input.destination());
+
+        if (countryResolution.needsCountryConfirmation()) {
+            String metadata = appendMetadata(
+                    buildTripSearchMetadata(input, List.of()),
+                    "country_resolution_pending=true");
+
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.PASSENGER_IDENTIFICATION,
+                    metadata);
+
+            return allowed(
+                    "COUNTRY_CONFIRMATION_REQUIRED",
+                    """
+                            Não consegui confirmar o país da sua viagem apenas pelas cidades informadas.
+
+                            Origem: %s
+                            Destino: %s
+
+                            A viagem é no Brasil ou em Angola?
+                            """.formatted(
+                            input.origin(),
+                            input.destination()).trim());
+        }
+
+        String countryMetadata = buildCountryMetadata(countryResolution);
+
         LocalDateTime startDateTime = input.date().atStartOfDay();
         LocalDateTime endDateTime = input.date().plusDays(1).atStartOfDay();
 
@@ -384,12 +420,18 @@ public class WhatsappCommandService {
                 .toList();
 
         if (options.isEmpty()) {
+            String metadata = appendMetadata(
+                    buildTripSearchMetadata(input, options),
+                    countryMetadata);
+
             updateSessionStep(
                     session,
                     WhatsappConversationStep.PASSENGER_IDENTIFICATION,
-                    buildTripSearchMetadata(input, options));
+                    metadata);
 
             String reply = """
+                    %s
+
                     Não encontrei viagens disponíveis para:
 
                     Origem: %s
@@ -402,6 +444,7 @@ public class WhatsappCommandService {
                     Destino: Rio de Janeiro
                     Data: 25/06/2026
                     """.formatted(
+                    buildCountryDetectedMessage(countryResolution),
                     input.origin(),
                     input.destination(),
                     input.date().format(DATE_FORMATTER));
@@ -409,13 +452,18 @@ public class WhatsappCommandService {
             return allowed("SEARCH_TRIPS", reply.trim());
         }
 
+        String metadata = appendMetadata(
+                buildTripSearchMetadata(input, options),
+                countryMetadata);
+
         updateSessionStep(
                 session,
                 WhatsappConversationStep.CHOOSING_TRIP,
-                buildTripSearchMetadata(input, options));
+                metadata);
 
         StringBuilder reply = new StringBuilder();
 
+        reply.append(buildCountryDetectedMessage(countryResolution)).append("\n\n");
         reply.append("🚌 Encontrei viagens disponíveis\n\n");
 
         for (int i = 0; i < options.size(); i++) {
@@ -429,6 +477,7 @@ public class WhatsappCommandService {
 
         return allowed("SEARCH_TRIPS", reply.toString().trim());
     }
+
 
     private WhatsappCommandResult createBookingFromSelectedTrip(
             WhatsappSessionResponse session,
@@ -1724,6 +1773,56 @@ public class WhatsappCommandService {
                 .setMetadata(metadata);
 
         whatsappSessionRepository.save(whatsappSession);
+    }
+
+    private String buildCountryMetadata(CountryResolutionResponse resolution) {
+        if (resolution == null || resolution.country() == null) {
+            return "";
+        }
+
+        return """
+                country=%s
+                currency=%s
+                document_types=%s
+                payment_methods=%s
+                """.formatted(
+                resolution.country(),
+                resolution.currency(),
+                joinEnumNames(resolution.documentTypes()),
+                joinEnumNames(resolution.paymentMethods())).trim();
+    }
+
+    private String buildCountryDetectedMessage(CountryResolutionResponse resolution) {
+        if (resolution == null || resolution.country() == null) {
+            return "";
+        }
+
+        return switch (resolution.country()) {
+            case AO -> """
+                    🇦🇴 País identificado: Angola
+                    Moeda: AOA
+                    Documento: BI ou Passaporte
+                    Pagamento: Multicaixa, Unitel Money, Afrimoney ou dinheiro
+                    """.trim();
+
+            case BR -> """
+                    🇧🇷 País identificado: Brasil
+                    Moeda: BRL
+                    Documento: CPF ou Passaporte
+                    Pagamento: Pix ou dinheiro
+                    """.trim();
+        };
+    }
+
+    private String joinEnumNames(List<? extends Enum<?>> values) {
+        if (values == null || values.isEmpty()) {
+            return "";
+        }
+
+        return values.stream()
+                .map(Enum::name)
+                .reduce((first, second) -> first + "," + second)
+                .orElse("");
     }
 
     private String buildTripSearchMetadata(
