@@ -180,11 +180,17 @@ public class WhatsappCommandService {
 
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 && WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
-                && isOptionOne(normalizedMessage)) {
-            return payBookingFromWhatsapp(session, "Pagar reserva");
+                && isPaymentMethodSelectionPending(session.getMetadata())
+                && isPaymentMethodOption(normalizedMessage)) {
+            return payBookingWithSelectedPaymentMethod(session, normalizedMessage);
         }
 
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
+                && WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
+                && isOptionOne(normalizedMessage)) {
+            return askPaymentMethodFromWhatsapp(session, "Pagar reserva");
+        }
+if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 && WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())
                 && isOptionOne(normalizedMessage)) {
             return issueTicketFromWhatsapp(session, "Emitir bilhete");
@@ -2607,6 +2613,7 @@ public class WhatsappCommandService {
             LocalDate date) {
     }
 }
+
 
 
 
