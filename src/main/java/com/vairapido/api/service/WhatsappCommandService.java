@@ -134,6 +134,10 @@ public class WhatsappCommandService {
                 return handlePassengerDataConfirmation(session, normalizedMessage);
             }
 
+            if (isSavedPassengerConfirmationPending(session.getMetadata())) {
+                return handleSavedPassengerConfirmation(session, normalizedMessage);
+            }
+
             if (WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER.equals(session.getCurrentStep())) {
                 return handleSavedPassengerConfirmation(session, normalizedMessage);
             }
@@ -811,10 +815,16 @@ public class WhatsappCommandService {
                 return allowed("ASK_PASSENGER_DOCUMENT", reply.trim());
             }
 
+            String confirmationMetadata = appendMetadata(
+                    metadata,
+                    "saved_passenger_confirmation_pending=true");
+
             updateSessionStep(
                     session,
                     WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER,
-                    metadata);
+                    confirmationMetadata);
+
+            metadata = confirmationMetadata;
 
             PassengerDocumentType documentType = getPassengerDocumentType(passenger);
             String firstName = extractFirstName(passenger.getFullName());
@@ -1012,10 +1022,16 @@ public class WhatsappCommandService {
 
             if (passenger.getDocumentType() != null
                     && passenger.getDocumentType().equals(requiredDocumentType)) {
+                String confirmationMetadata = appendMetadata(
+                        metadata,
+                        "saved_passenger_confirmation_pending=true");
+
                 updateSessionStep(
                         session,
                         WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER,
-                        metadata);
+                        confirmationMetadata);
+
+                metadata = confirmationMetadata;
 
                 String reply = """
                         ✅ Viagem de volta escolhida.
@@ -1495,30 +1511,34 @@ public class WhatsappCommandService {
         return optionNumber != null && optionNumber >= 1 && optionNumber <= 4;
     }
 
-
     private PaymentMethod resolveSelectedPaymentMethod(
             String metadata,
             Booking booking,
             String normalizedMessage) {
         boolean angola = isAngolaPaymentContext(metadata, booking);
-        String option = normalizedMessage == null ? "" : normalizedMessage.trim();
+        Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
+
+        if (optionNumber == null) {
+            return null;
+        }
 
         if (angola) {
-            return switch (option) {
-                case "1" -> PaymentMethod.MULTICAIXA_EXPRESS;
-                case "2" -> PaymentMethod.UNITEL_MONEY;
-                case "3" -> PaymentMethod.AFRIMONEY;
-                case "4" -> PaymentMethod.CASH;
+            return switch (optionNumber) {
+                case 1 -> PaymentMethod.MULTICAIXA_EXPRESS;
+                case 2 -> PaymentMethod.UNITEL_MONEY;
+                case 3 -> PaymentMethod.AFRIMONEY;
+                case 4 -> PaymentMethod.CASH;
                 default -> null;
             };
         }
 
-        return switch (option) {
-            case "1" -> PaymentMethod.PIX;
-            case "2" -> PaymentMethod.CASH;
+        return switch (optionNumber) {
+            case 1 -> PaymentMethod.PIX;
+            case 2 -> PaymentMethod.CASH;
             default -> null;
         };
     }
+
 
     private String buildPaymentMethodOptionsCard(
             String metadata,
@@ -1831,34 +1851,48 @@ public class WhatsappCommandService {
     }
 
     private boolean isIssueTicketSelection(String normalizedMessage) {
-        return normalizedMessage != null && normalizedMessage.matches("[1-5]");
+        Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
+        return optionNumber != null && optionNumber >= 1 && optionNumber <= 5;
     }
-    private Integer extractSimpleOptionNumber(String normalizedMessage) {
-        if (normalizedMessage == null || normalizedMessage.isBlank()) {
+
+
+    private Integer extractSimpleOptionNumber(String messageText) {
+        if (messageText == null || messageText.isBlank()) {
             return null;
         }
 
-        String cleaned = normalizeText(normalizedMessage)
+        Matcher optionMatcher = TRIP_OPTION_PATTERN.matcher(messageText);
+
+        if (optionMatcher.find()) {
+            try {
+                return Integer.parseInt(optionMatcher.group(1));
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+
+        String normalized = normalizeText(messageText)
                 .replaceAll("[^0-9a-z ]", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
 
-        if (cleaned.isBlank()) {
+        if (normalized.isBlank()) {
             return null;
         }
 
-        Matcher matcher = Pattern.compile("(^|\\s)(\\d+)(\\s|$)").matcher(cleaned);
+        Matcher numberMatcher = Pattern.compile("\\d+").matcher(normalized);
 
-        if (!matcher.find()) {
+        if (!numberMatcher.find()) {
             return null;
         }
 
         try {
-            return Integer.parseInt(matcher.group(2));
+            return Integer.parseInt(numberMatcher.group(0));
         } catch (NumberFormatException exception) {
             return null;
         }
     }
+
 
 
     private String buildPaidBookingSelectionMetadata(
@@ -2590,11 +2624,17 @@ public class WhatsappCommandService {
     }
 
     private String[] splitLines(String text) {
+        if (text == null || text.isBlank()) {
+            return new String[0];
+        }
+
         return text
                 .replace("\r\n", "\n")
                 .replace("\r", "\n")
+                .replace(";", "\n")
                 .split("\n");
     }
+
 
     private String cleanSearchTerm(String value) {
         if (value == null) {
@@ -2656,55 +2696,38 @@ public class WhatsappCommandService {
         String prefix = key + "=";
         String foundValue = null;
 
-        for (String line : splitLines(metadata)) {
-            if (line.startsWith(prefix)) {
-                String value = line.substring(prefix.length()).trim();
-                foundValue = value.isBlank() ? null : value;
+        String normalizedMetadata = metadata
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
+                .replace(";", "\n");
+
+        for (String line : normalizedMetadata.split("\n")) {
+            if (line == null) {
+                continue;
             }
+
+            String cleanedLine = line.trim();
+
+            if (!cleanedLine.startsWith(prefix)) {
+                continue;
+            }
+
+            String value = cleanedLine.substring(prefix.length()).trim();
+            foundValue = value.isBlank() ? null : value;
         }
 
         return foundValue;
     }
 
+
     private boolean isTripOptionSelection(String messageText) {
         return extractSelectedOptionNumber(messageText) != null;
     }
+
     private Integer extractSelectedOptionNumber(String messageText) {
-        if (messageText == null || messageText.isBlank()) {
-            return null;
-        }
-
-        Matcher optionMatcher = TRIP_OPTION_PATTERN.matcher(messageText);
-
-        if (optionMatcher.find()) {
-            try {
-                return Integer.parseInt(optionMatcher.group(1));
-            } catch (NumberFormatException exception) {
-                return null;
-            }
-        }
-
-        String cleaned = normalizeText(messageText)
-                .replaceAll("[^0-9a-z ]", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
-
-        if (cleaned.isBlank()) {
-            return null;
-        }
-
-        Matcher numberMatcher = Pattern.compile("(^|\\s)(\\d+)(\\s|$)").matcher(cleaned);
-
-        if (!numberMatcher.find()) {
-            return null;
-        }
-
-        try {
-            return Integer.parseInt(numberMatcher.group(2));
-        } catch (NumberFormatException exception) {
-            return null;
-        }
+        return extractSimpleOptionNumber(messageText);
     }
+
 
 
     private UUID extractTripIdFromMetadata(String metadata, int optionNumber) {
@@ -2730,6 +2753,13 @@ public class WhatsappCommandService {
 
         return null;
     }
+
+    private boolean isSavedPassengerConfirmationPending(String metadata) {
+        String pending = extractMetadataValue(metadata, "saved_passenger_confirmation_pending");
+        return "true".equalsIgnoreCase(pending);
+    }
+
+
     private WhatsappCommandResult handleSavedPassengerConfirmation(
             WhatsappSessionResponse session,
             String normalizedMessage) {
@@ -2752,6 +2782,7 @@ public class WhatsappCommandService {
 
             String metadata = appendMetadata(
                     session.getMetadata(),
+                    "saved_passenger_confirmation_pending=false",
                     "confirmed_passenger_id=" + passenger.getId(),
                     "confirmed_passenger_name=" + passenger.getFullName(),
                     "confirmed_document_type=" + documentType,
@@ -2788,6 +2819,7 @@ public class WhatsappCommandService {
                 || containsAny(normalizedMessage, "nao", "não", "outro", "outra pessoa")) {
             String metadata = appendMetadata(
                     session.getMetadata(),
+                    "saved_passenger_confirmation_pending=false",
                     "passenger_mode=other");
 
             updateSessionStep(
@@ -2808,6 +2840,7 @@ public class WhatsappCommandService {
                 || containsAny(normalizedMessage, "alterar", "atualizar", "corrigir")) {
             String metadata = appendMetadata(
                     session.getMetadata(),
+                    "saved_passenger_confirmation_pending=false",
                     "passenger_mode=update");
 
             updateSessionStep(
