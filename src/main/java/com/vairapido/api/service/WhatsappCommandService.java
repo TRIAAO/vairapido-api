@@ -1073,7 +1073,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         return null;
     }
 
-    private String buildSelectedReturnTripSummary(String metadata) {
+        private String buildSelectedReturnTripSummary(String metadata) {
         String returnTripId = extractMetadataValue(metadata, "return_selected_trip_id");
 
         if (returnTripId == null || returnTripId.isBlank()) {
@@ -1087,15 +1087,45 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 return "";
             }
 
+            TravelRoute route = trip.getRoute();
+            TransportCompany company = trip.getTransportCompany();
+
+            String companyName = "-";
+
+            if (company != null) {
+                companyName = company.getTradeName() != null && !company.getTradeName().isBlank()
+                        ? company.getTradeName()
+                        : company.getName();
+            }
+
+            String origin = route != null ? route.getOriginCity() : "-";
+            String destination = route != null ? route.getDestinationCity() : "-";
+            String departure = trip.getDepartureAt() != null
+                    ? trip.getDepartureAt().format(DATE_TIME_FORMATTER)
+                    : "-";
+
+            String price = trip.getPrice() != null ? trip.getPrice().toPlainString() : "0.00";
+            String currency = trip.getCurrency() != null ? trip.getCurrency() : "-";
+
             return """
-                    🔁 Volta escolhida:
-                    %s
-                    """.formatted(formatTripOption(1, trip)).trim();
+                    🔁 Volta escolhida
+                    🚌 Empresa: %s
+                    📍 Trecho: %s → %s
+                    🕒 Saída: %s
+                    💰 Valor: %s %s
+                    """.formatted(
+                    companyName,
+                    origin,
+                    destination,
+                    departure,
+                    currency,
+                    price).trim();
 
         } catch (Exception exception) {
             return "";
         }
     }
+
     private WhatsappCommandResult askPaymentMethodFromWhatsapp(
             WhatsappSessionResponse session,
             String messageText) {
@@ -2328,11 +2358,34 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 """.formatted(input.returnDate().format(DATE_FORMATTER)).trim();
     }
 
-    private String buildRoundTripReturnInstructionFromMetadata(String metadata) {
+        private String buildRoundTripReturnInstructionFromMetadata(String metadata) {
         String tripType = extractMetadataValue(metadata, "trip_type");
 
         if (!"ROUND_TRIP".equalsIgnoreCase(tripType)) {
             return "";
+        }
+
+        String returnTripSelected = extractMetadataValue(metadata, "return_trip_selected");
+        String returnTripId = extractMetadataValue(metadata, "return_selected_trip_id");
+
+        if ("true".equalsIgnoreCase(returnTripSelected)
+                && returnTripId != null
+                && !returnTripId.isBlank()) {
+            String returnSummary = buildSelectedReturnTripSummary(metadata);
+
+            if (returnSummary == null || returnSummary.isBlank()) {
+                return """
+                        
+                        🔁 Volta já escolhida.
+                        """;
+            }
+
+            return """
+                    
+                    ✅ Volta já escolhida antes da finalização.
+
+                    %s
+                    """.formatted(returnSummary);
         }
 
         String origin = extractMetadataValue(metadata, "origin");
@@ -2357,6 +2410,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 origin,
                 returnDate);
     }
+
     private LocalDate extractSearchDate(String messageText) {
         Matcher matcher = TRIP_SEARCH_DATE_PATTERN.matcher(messageText);
 
@@ -3761,6 +3815,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate returnDate) {
     }
 }
+
 
 
 
