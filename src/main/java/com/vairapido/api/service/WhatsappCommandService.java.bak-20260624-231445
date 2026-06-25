@@ -2531,85 +2531,9 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
         return value == null || value.isBlank() ? null : value;
     }
-        private WhatsappCommandResult handlePassengerDataConfirmation(
+    private WhatsappCommandResult handlePassengerDataConfirmation(
             WhatsappSessionResponse session,
             String normalizedMessage) {
-        if (isAngolaTermsAcceptancePending(session.getMetadata())) {
-            if (isOptionOne(normalizedMessage)
-                    || containsAny(normalizedMessage, "aceito", "aceitar", "concordo", "continuar")) {
-                String metadata = appendMetadata(
-                        session.getMetadata(),
-                        "angola_terms_acceptance_pending=false",
-                        "angola_terms_accepted=true",
-                        "angola_terms_version=AO-2026-001",
-                        "angola_terms_accepted_at=" + LocalDateTime.now());
-
-                updateSessionStep(
-                        session,
-                        WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
-                        metadata);
-
-                String passengerId = extractMetadataValue(metadata, "confirmed_passenger_id");
-
-                if (passengerId == null || passengerId.isBlank()) {
-                    updateSessionStep(
-                            session,
-                            WhatsappConversationStep.ASKING_FULL_NAME,
-                            metadata);
-
-                    return allowed(
-                            "ASK_PASSENGER_NAME",
-                            "Não encontrei os dados confirmados do passageiro.\n\nQual é o nome completo do passageiro?");
-                }
-
-                try {
-                    Passenger passenger = passengerRepository.findById(UUID.fromString(passengerId))
-                            .orElseThrow(() -> new IllegalArgumentException("Passageiro não encontrado."));
-
-                    return createBookingWithPassenger(session, passenger);
-
-                } catch (Exception exception) {
-                    updateSessionStep(
-                            session,
-                            WhatsappConversationStep.ASKING_FULL_NAME,
-                            metadata);
-
-                    return allowed(
-                            "ASK_PASSENGER_NAME",
-                            "Não consegui confirmar o passageiro informado.\n\nQual é o nome completo do passageiro?");
-                }
-            }
-
-            if (isOptionTwo(normalizedMessage)
-                    || containsAny(normalizedMessage, "cancelar", "não aceito", "nao aceito", "recusar")) {
-                String metadata = appendMetadata(
-                        session.getMetadata(),
-                        "angola_terms_acceptance_pending=false",
-                        "angola_terms_accepted=false",
-                        "booking_cancelled_by_terms=true");
-
-                updateSessionStep(
-                        session,
-                        WhatsappConversationStep.START,
-                        metadata);
-
-                return allowed(
-                        "ANGOLA_TERMS_DECLINED",
-                        """
-                                Reserva não concluída.
-
-                                Para viagens em Angola, é necessário aceitar as condições de reserva, documento e pagamento antes de finalizar a compra.
-
-                                Quando desejar, inicie uma nova compra enviando:
-                                Comprar passagem
-                                """.trim());
-            }
-
-            return allowed(
-                    "ANGOLA_TERMS",
-                    buildAngolaTermsCard());
-        }
-
         if (isOptionOne(normalizedMessage)
                 || containsAny(normalizedMessage, "sim", "confirmo", "confirmar", "continuar")) {
 
@@ -2624,23 +2548,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 return allowed(
                         "ASK_PASSENGER_NAME",
                         "Não encontrei os dados confirmados do passageiro.\n\nQual é o nome completo do passageiro?");
-            }
-
-            if (isAngolaTermsRequired(session.getMetadata())
-                    && !isAngolaTermsAccepted(session.getMetadata())) {
-                String metadata = appendMetadata(
-                        session.getMetadata(),
-                        "angola_terms_acceptance_pending=true",
-                        "angola_terms_version=AO-2026-001");
-
-                updateSessionStep(
-                        session,
-                        WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
-                        metadata);
-
-                return allowed(
-                        "ANGOLA_TERMS",
-                        buildAngolaTermsCard());
             }
 
             try {
@@ -2693,53 +2600,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                         """.trim());
     }
 
-
-            private boolean isAngolaTermsRequired(String metadata) {
-        String country = extractMetadataValue(metadata, "country");
-
-        if ("AO".equalsIgnoreCase(country)) {
-            return true;
-        }
-
-        String currency = extractMetadataValue(metadata, "currency");
-
-        if ("AOA".equalsIgnoreCase(currency)) {
-            return true;
-        }
-
-        String documentType = extractMetadataValue(metadata, "confirmed_document_type");
-
-        return "BI".equalsIgnoreCase(documentType);
-    }
-
-    private boolean isAngolaTermsAccepted(String metadata) {
-        String accepted = extractMetadataValue(metadata, "angola_terms_accepted");
-        return "true".equalsIgnoreCase(accepted);
-    }
-
-    private boolean isAngolaTermsAcceptancePending(String metadata) {
-        String pending = extractMetadataValue(metadata, "angola_terms_acceptance_pending");
-        return "true".equalsIgnoreCase(pending);
-    }
-
-    private String buildAngolaTermsCard() {
-        return """
-                📄 Termos de reserva — Angola
-
-                Antes de concluir a reserva, confirme que leu e aceita as condições:
-
-                1️⃣ O passageiro deve apresentar BI ou Passaporte válido.
-                2️⃣ Para pagamento em dinheiro, o passageiro deve comparecer ao guichê da empresa com antecedência mínima de 30 minutos.
-                3️⃣ A reserva pode expirar caso o pagamento não seja confirmado dentro do prazo.
-                4️⃣ A empresa transportadora é responsável pela execução da viagem.
-                5️⃣ Os dados informados serão usados para emissão da reserva, bilhete e fatura, quando solicitado.
-
-                Responda:
-                1️⃣ Aceito e continuar
-                2️⃣ Cancelar
-                """.trim();
-    }
-    private WhatsappCommandResult createBookingWithPassenger(
+            private WhatsappCommandResult createBookingWithPassenger(
             WhatsappSessionResponse session,
             Passenger passenger) {
         UUID tripId = extractSelectedTripIdFromMetadata(session.getMetadata());
@@ -3397,7 +3258,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate date) {
     }
 }
-
 
 
 
