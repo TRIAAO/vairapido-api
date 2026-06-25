@@ -2308,7 +2308,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
 
 
-    private WhatsappCommandResult handlePassengerDocumentAnswer(
+        private WhatsappCommandResult handlePassengerDocumentAnswer(
             WhatsappSessionResponse session,
             String messageText) {
         String fullName = extractMetadataValue(session.getMetadata(), "pending_passenger_name");
@@ -2333,13 +2333,63 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                     ? "Exemplo: 001058899UE035"
                     : "Exemplo: 52998224725";
 
+            boolean angolaFlow = isAngolaDocumentFlow(session.getMetadata(), documentType);
+
+            int attempts = readIntMetadataValue(
+                    session.getMetadata(),
+                    "invalid_document_attempts",
+                    0);
+
+            attempts++;
+
+            String updatedMetadata = appendMetadata(
+                    session.getMetadata(),
+                    "invalid_document_attempts=" + attempts);
+
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.ASKING_DOCUMENT,
+                    updatedMetadata);
+
+            if (angolaFlow && attempts >= 3) {
+                String blockedMetadata = appendMetadata(
+                        updatedMetadata,
+                        "document_blocked=true",
+                        "document_block_reason=invalid_document_limit",
+                        "document_block_country=AO");
+
+                updateSessionStep(
+                        session,
+                        WhatsappConversationStep.START,
+                        blockedMetadata);
+
+                return allowed(
+                        "DOCUMENT_BLOCKED",
+                        """
+                                Lamentamos, não é possível completar a reserva e emitir bilhete sem documento de identificação válido.
+
+                                Para viagens em Angola, o passageiro deve apresentar BI ou Passaporte válido.
+
+                                Verifique o documento e inicie uma nova compra quando tiver os dados corretos.
+
+                                Exemplo de BI válido:
+                                001058899UE035
+                                """.trim());
+            }
+
+            String warning = angolaFlow
+                    ? "Tentativa " + attempts + " de 3."
+                    : "Verifique os dados e envie novamente.";
+
             return allowed(
                     "ASK_PASSENGER_DOCUMENT",
                     """
-                            %s inválido. Verifique os dados e envie novamente.
+                            %s inválido.
 
                             %s
-                            """.formatted(documentLabel, example).trim());
+
+                            %s
+                            """.formatted(documentLabel, warning, example).trim());
         }
 
         String passengerMode = extractMetadataValue(session.getMetadata(), "passenger_mode");
@@ -2394,7 +2444,10 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 "confirmed_passenger_id=" + passenger.getId(),
                 "confirmed_passenger_name=" + passenger.getFullName(),
                 "confirmed_document_type=" + documentType,
-                "confirmed_document_number=" + passenger.getDocumentNumber());
+                "confirmed_document_number=" + passenger.getDocumentNumber(),
+                "invalid_document_attempts=0",
+                "document_blocked=false");
+
         updateSessionStep(
                 session,
                 WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
@@ -2418,6 +2471,66 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         return allowed("CONFIRM_PASSENGER_DATA", reply.trim());
     }
 
+
+    private boolean isAngolaDocumentFlow(
+            String metadata,
+            PassengerDocumentType documentType) {
+        String country = extractMetadataValue(metadata, "country");
+
+        if ("AO".equalsIgnoreCase(country)) {
+            return true;
+        }
+
+        String currency = extractMetadataValue(metadata, "currency");
+
+        if ("AOA".equalsIgnoreCase(currency)) {
+            return true;
+        }
+
+        return PassengerDocumentType.BI.equals(documentType);
+    }
+
+    private int readIntMetadataValue(
+            String metadata,
+            String key,
+            int defaultValue) {
+        String raw = extractMetadataValue(metadata, key);
+
+        if (raw == null || raw.isBlank()) {
+            raw = extractMetadataValueFlexible(metadata, key);
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException exception) {
+            return defaultValue;
+        }
+    }
+
+    private String extractMetadataValueFlexible(
+            String metadata,
+            String key) {
+        if (metadata == null || metadata.isBlank() || key == null || key.isBlank()) {
+            return null;
+        }
+
+        String pattern = "(^|[;\\n\\r])\\s*" + java.util.regex.Pattern.quote(key) + "=([^;\\n\\r]*)";
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile(pattern)
+                .matcher(metadata);
+
+        String value = null;
+
+        while (matcher.find()) {
+            value = matcher.group(2) != null ? matcher.group(2).trim() : null;
+        }
+
+        return value == null || value.isBlank() ? null : value;
+    }
     private WhatsappCommandResult handlePassengerDataConfirmation(
             WhatsappSessionResponse session,
             String normalizedMessage) {
@@ -3145,6 +3258,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate date) {
     }
 }
+
 
 
 
