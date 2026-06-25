@@ -1718,6 +1718,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
 
             PaymentResponse createdPayment = paymentService.create(paymentRequest);
             PaymentResponse confirmedPayment = paymentService.confirm(createdPayment.getId());
+            PaymentResponse confirmedReturnPayment = payReturnBookingIfNeeded(session.getMetadata(), selectedMethod);
 
             String metadata = appendMetadata(
                     session.getMetadata(),
@@ -1727,7 +1728,8 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                     "payment_method=" + confirmedPayment.getMethod(),
                     "payment_method_label=" + paymentMethodLabel(confirmedPayment.getMethod()),
                     "payment_status=" + confirmedPayment.getStatus(),
-                    "booking_status=" + confirmedPayment.getBookingStatus());
+                    "booking_status=" + confirmedPayment.getBookingStatus(),
+                    buildReturnPaymentMetadata(confirmedReturnPayment));
 
             updateSessionStep(
                     session,
@@ -2011,6 +2013,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
 
             PaymentResponse createdPayment = paymentService.create(paymentRequest);
             PaymentResponse confirmedPayment = paymentService.confirm(createdPayment.getId());
+            PaymentResponse confirmedReturnPayment = payReturnBookingIfNeeded(session.getMetadata(), paymentMethod);
 
             String metadata = appendMetadata(
                     session.getMetadata(),
@@ -2019,7 +2022,8 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                     "payment_method=" + confirmedPayment.getMethod(),
                     "payment_method_label=" + paymentMethodLabel(confirmedPayment.getMethod()),
                     "payment_status=" + confirmedPayment.getStatus(),
-                    "booking_status=" + confirmedPayment.getBookingStatus());
+                    "booking_status=" + confirmedPayment.getBookingStatus(),
+                    buildReturnPaymentMetadata(confirmedReturnPayment));
 
             updateSessionStep(
                     session,
@@ -2336,9 +2340,13 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                             WhatsappConversationStep.TICKET_ISSUED,
                             metadata);
 
+                    TicketResponse returnTicket = issueReturnTicketIfNeeded(session.getMetadata());
+
                     return allowed(
                             "ISSUE_TICKET",
-                            formatTicketIssuedReply(existingTicket, true));
+                            returnTicket != null
+                                    ? formatRoundTripTicketsIssuedReply(existingTicket, returnTicket, true)
+                                    : formatTicketIssuedReply(existingTicket, true));
                 }
 
                 return allowed(
@@ -2382,13 +2390,15 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                     .setBookingId(booking.getId());
 
             TicketResponse ticket = ticketService.issue(ticketRequest);
+            TicketResponse returnTicket = issueReturnTicketIfNeeded(session.getMetadata());
 
             String metadata = appendMetadata(
                     session.getMetadata(),
                     "ticket_id=" + ticket.getId(),
                     "ticket_code=" + ticket.getTicketCode(),
                     "ticket_status=" + ticket.getStatus(),
-                    "ticket_pdf_url=" + buildTicketPdfUrl(ticket.getId()));
+                    "ticket_pdf_url=" + buildTicketPdfUrl(ticket.getId()),
+                    buildReturnTicketMetadata(returnTicket));
 
             updateSessionStep(
                     session,
@@ -2397,7 +2407,9 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
 
             return allowed(
                     "ISSUE_TICKET",
-                    formatTicketIssuedReply(ticket, false));
+                    returnTicket != null
+                            ? formatRoundTripTicketsIssuedReply(ticket, returnTicket, false)
+                            : formatTicketIssuedReply(ticket, false));
 
         } catch (Exception exception) {
             return allowed(
@@ -2406,6 +2418,204 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                             + exception.getMessage()
                             + "\n\nTente novamente ou fale com o suporte.");
         }
+    }
+
+
+    private BookingResponse createReturnBookingIfNeeded(
+            WhatsappSessionResponse session,
+            Passenger passenger) {
+        String metadata = session.getMetadata();
+
+        String returnTripIdText = extractMetadataValue(metadata, "return_selected_trip_id");
+        String existingReturnBookingCode = extractMetadataValue(metadata, "return_booking_code");
+
+        if (existingReturnBookingCode != null && !existingReturnBookingCode.isBlank()) {
+            return null;
+        }
+
+        if (returnTripIdText == null || returnTripIdText.isBlank()) {
+            return null;
+        }
+
+        try {
+            UUID returnTripId = UUID.fromString(returnTripIdText);
+
+            Trip returnTrip = tripRepository.findById(returnTripId)
+                    .orElseThrow(() -> new IllegalArgumentException("Viagem de volta não encontrada."));
+
+            Integer returnSeatNumber = findFirstAvailableSeat(returnTrip);
+
+            BookingRequest returnRequest = new BookingRequest()
+                    .setTripId(returnTrip.getId())
+                    .setPassengerId(passenger.getId())
+                    .setSeatNumber(returnSeatNumber);
+
+            return bookingService.create(returnRequest);
+
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Não foi possível criar a reserva da volta: " + exception.getMessage());
+        }
+    }
+
+    private String buildReturnBookingMetadata(BookingResponse returnBooking) {
+        if (returnBooking == null) {
+            return "";
+        }
+
+        return String.join("\n",
+                "return_booking_id=" + returnBooking.getId(),
+                "return_booking_code=" + returnBooking.getBookingCode(),
+                "return_seat_number=" + returnBooking.getSeatNumber(),
+                "return_booking_status=" + returnBooking.getStatus(),
+                "return_currency=" + returnBooking.getCurrency());
+    }
+
+    private PaymentResponse payReturnBookingIfNeeded(
+            String metadata,
+            PaymentMethod paymentMethod) {
+        String returnBookingCode = extractMetadataValue(metadata, "return_booking_code");
+
+        if (returnBookingCode == null || returnBookingCode.isBlank()) {
+            return null;
+        }
+
+        Booking returnBooking = bookingRepository.findByBookingCode(returnBookingCode).orElse(null);
+
+        if (returnBooking == null) {
+            return null;
+        }
+
+        if (BookingStatus.PAID.equals(returnBooking.getStatus())
+                || BookingStatus.TICKET_ISSUED.equals(returnBooking.getStatus())) {
+            return null;
+        }
+
+        if (!BookingStatus.PENDING_PAYMENT.equals(returnBooking.getStatus())) {
+            return null;
+        }
+
+        PaymentRequest returnPaymentRequest = new PaymentRequest()
+                .setBookingId(returnBooking.getId())
+                .setMethod(paymentMethod);
+
+        PaymentResponse createdReturnPayment = paymentService.create(returnPaymentRequest);
+        return paymentService.confirm(createdReturnPayment.getId());
+    }
+
+    private String buildReturnPaymentMetadata(PaymentResponse returnPayment) {
+        if (returnPayment == null) {
+            return "";
+        }
+
+        return String.join("\n",
+                "return_payment_id=" + returnPayment.getId(),
+                "return_payment_code=" + returnPayment.getPaymentCode(),
+                "return_payment_method=" + returnPayment.getMethod(),
+                "return_payment_status=" + returnPayment.getStatus(),
+                "return_booking_status=" + returnPayment.getBookingStatus());
+    }
+
+    private TicketResponse issueReturnTicketIfNeeded(String metadata) {
+        String returnBookingCode = extractMetadataValue(metadata, "return_booking_code");
+
+        if (returnBookingCode == null || returnBookingCode.isBlank()) {
+            return null;
+        }
+
+        Booking returnBooking = bookingRepository.findByBookingCode(returnBookingCode).orElse(null);
+
+        if (returnBooking == null) {
+            return null;
+        }
+
+        if (BookingStatus.TICKET_ISSUED.equals(returnBooking.getStatus())) {
+            return ticketRepository.findByBooking_Id(returnBooking.getId())
+                    .map(ticket -> ticketService.findById(ticket.getId()))
+                    .orElse(null);
+        }
+
+        if (!BookingStatus.PAID.equals(returnBooking.getStatus())) {
+            return null;
+        }
+
+        TicketRequest returnTicketRequest = new TicketRequest()
+                .setBookingId(returnBooking.getId());
+
+        return ticketService.issue(returnTicketRequest);
+    }
+
+    private String buildReturnTicketMetadata(TicketResponse returnTicket) {
+        if (returnTicket == null) {
+            return "";
+        }
+
+        return String.join("\n",
+                "return_ticket_id=" + returnTicket.getId(),
+                "return_ticket_code=" + returnTicket.getTicketCode(),
+                "return_ticket_status=" + returnTicket.getStatus(),
+                "return_ticket_pdf_url=" + buildTicketPdfUrl(returnTicket.getId()));
+    }
+
+    private String formatRoundTripTicketsIssuedReply(
+            TicketResponse outboundTicket,
+            TicketResponse returnTicket,
+            boolean alreadyIssued) {
+        String title = alreadyIssued
+                ? "🎫 Bilhetes já emitidos para esta compra ida e volta."
+                : "🎫 Bilhetes emitidos com sucesso para ida e volta.";
+
+        return """
+                %s
+
+                🚌 BILHETE DE IDA
+                🎫 Código: %s
+                📄 Reserva: %s
+                🧍 Passageiro: %s
+                📍 Trecho: %s → %s
+                🕒 Saída: %s
+                💺 Poltrona: %d
+                💰 Valor: %s %s
+                📄 PDF:
+                %s
+
+                🔁 BILHETE DE VOLTA
+                🎫 Código: %s
+                📄 Reserva: %s
+                🧍 Passageiro: %s
+                📍 Trecho: %s → %s
+                🕒 Saída: %s
+                💺 Poltrona: %d
+                💰 Valor: %s %s
+                📄 PDF:
+                %s
+
+                Apresente o bilhete correspondente em cada embarque.
+                """.formatted(
+                title,
+                outboundTicket.getTicketCode(),
+                outboundTicket.getBookingCode(),
+                outboundTicket.getPassengerName(),
+                outboundTicket.getOriginCity(),
+                outboundTicket.getDestinationCity(),
+                outboundTicket.getDepartureAt() != null
+                        ? outboundTicket.getDepartureAt().format(DATE_TIME_FORMATTER)
+                        : "-",
+                outboundTicket.getSeatNumber(),
+                outboundTicket.getCurrency(),
+                outboundTicket.getAmount() != null ? outboundTicket.getAmount().toPlainString() : "0.00",
+                buildTicketPdfUrl(outboundTicket.getId()),
+                returnTicket.getTicketCode(),
+                returnTicket.getBookingCode(),
+                returnTicket.getPassengerName(),
+                returnTicket.getOriginCity(),
+                returnTicket.getDestinationCity(),
+                returnTicket.getDepartureAt() != null
+                        ? returnTicket.getDepartureAt().format(DATE_TIME_FORMATTER)
+                        : "-",
+                returnTicket.getSeatNumber(),
+                returnTicket.getCurrency(),
+                returnTicket.getAmount() != null ? returnTicket.getAmount().toPlainString() : "0.00",
+                buildTicketPdfUrl(returnTicket.getId())).trim();
     }
 
     private PaymentMethod resolvePaymentMethodForBooking(
@@ -3868,6 +4078,7 @@ private TripSearchInput parseTripSearch(String messageText) {
                     .setSeatNumber(seatNumber);
 
             BookingResponse booking = bookingService.create(request);
+            BookingResponse returnBooking = createReturnBookingIfNeeded(session, passenger);
 
             String documentLabel = documentValidatorService.label(documentType);
             String maskedDocument = documentValidatorService.mask(documentType, passenger.getDocumentNumber());
@@ -3879,7 +4090,8 @@ private TripSearchInput parseTripSearch(String messageText) {
                     "booking_code=" + booking.getBookingCode(),
                     "seat_number=" + booking.getSeatNumber(),
                     "booking_status=" + booking.getStatus(),
-                    "currency=" + booking.getCurrency());
+                    "currency=" + booking.getCurrency(),
+                    buildReturnBookingMetadata(returnBooking));
 
             updateSessionStep(
                     session,
