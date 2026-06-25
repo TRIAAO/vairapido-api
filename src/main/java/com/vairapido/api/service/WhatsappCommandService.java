@@ -1051,7 +1051,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         return "ROUND_TRIP".equalsIgnoreCase(tripType);
     }
 
-        private boolean isReturnTripSelectionPending(String metadata) {
+            private boolean isReturnTripSelectionPending(String metadata) {
         String pending = extractMetadataValue(metadata, "return_trip_selection_pending");
 
         if ("true".equalsIgnoreCase(pending)) {
@@ -1068,6 +1068,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
         return hasReturnOptions && !alreadySelected;
     }
+
 
 
     private boolean isReturnTripSelected(String metadata) {
@@ -2347,49 +2348,87 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
     }
 
 
-    private boolean isRoundTripRequest(String normalizedMessage) {
+        private boolean isRoundTripRequest(String normalizedMessage) {
         if (normalizedMessage == null || normalizedMessage.isBlank()) {
             return false;
         }
 
-        return normalizedMessage.contains("ida e volta")
-                || normalizedMessage.contains("ida volta")
-                || normalizedMessage.contains("volta")
-                || normalizedMessage.contains("retorno")
-                || normalizedMessage.contains("regresso");
+        String text = normalizedMessage.trim().toLowerCase(Locale.ROOT);
+
+        return text.contains("ida e volta")
+                || text.contains("ida volta")
+                || text.contains("volta")
+                || text.contains("retorno")
+                || text.contains("regresso")
+                || text.contains("data de volta")
+                || text.contains("data volta")
+                || text.contains("data retorno")
+                || text.contains("data de retorno");
     }
 
-    private LocalDate extractReturnDate(String messageText) {
+
+        private LocalDate extractReturnDate(String messageText) {
         if (messageText == null || messageText.isBlank()) {
             return null;
         }
 
-        String[] labels = {"volta", "retorno", "regresso"};
+        for (String line : splitLines(messageText)) {
+            String normalizedLine = normalizeText(line);
 
-        for (String label : labels) {
-            for (String line : splitLines(messageText)) {
-                String normalizedLine = normalizeText(line);
+            boolean isReturnLine = normalizedLine.startsWith("volta")
+                    || normalizedLine.startsWith("retorno")
+                    || normalizedLine.startsWith("regresso")
+                    || normalizedLine.startsWith("data de volta")
+                    || normalizedLine.startsWith("data volta")
+                    || normalizedLine.startsWith("data de retorno")
+                    || normalizedLine.startsWith("data retorno")
+                    || normalizedLine.contains("volta:")
+                    || normalizedLine.contains("retorno:")
+                    || normalizedLine.contains("regresso:");
 
-                if (!normalizedLine.startsWith(label)) {
-                    continue;
-                }
+            if (!isReturnLine) {
+                continue;
+            }
 
-                Matcher matcher = TRIP_SEARCH_DATE_PATTERN.matcher(line);
+            Matcher matcher = TRIP_SEARCH_DATE_PATTERN.matcher(line);
 
-                if (matcher.find()) {
-                    String rawDate = matcher.group(1).replace("-", "/");
+            if (matcher.find()) {
+                String rawDate = matcher.group(1).replace("-", "/");
 
-                    try {
-                        return LocalDate.parse(rawDate, DATE_FORMATTER);
-                    } catch (DateTimeParseException exception) {
-                        return null;
-                    }
+                try {
+                    return LocalDate.parse(rawDate, DATE_FORMATTER);
+                } catch (DateTimeParseException exception) {
+                    return null;
                 }
             }
         }
 
+        String normalizedMessage = normalizeText(messageText);
+
+        if (!isRoundTripRequest(normalizedMessage)) {
+            return null;
+        }
+
+        Matcher matcher = TRIP_SEARCH_DATE_PATTERN.matcher(messageText);
+        List<LocalDate> dates = new ArrayList<>();
+
+        while (matcher.find()) {
+            String rawDate = matcher.group(1).replace("-", "/");
+
+            try {
+                dates.add(LocalDate.parse(rawDate, DATE_FORMATTER));
+            } catch (DateTimeParseException ignored) {
+                // Ignora data inválida.
+            }
+        }
+
+        if (dates.size() >= 2) {
+            return dates.get(1);
+        }
+
         return null;
     }
+
 
     private boolean isRoundTripSearch(TripSearchInput input) {
         return input != null && input.returnDate() != null;
@@ -3867,6 +3906,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate returnDate) {
     }
 }
+
 
 
 
