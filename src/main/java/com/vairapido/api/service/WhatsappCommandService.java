@@ -21,6 +21,7 @@ import com.vairapido.api.entity.User;
 import com.vairapido.api.entity.WhatsappSession;
 import com.vairapido.api.entity.enums.BookingStatus;
 import com.vairapido.api.entity.enums.PassengerDocumentType;
+import com.vairapido.api.entity.enums.PassengerFareType;
 import com.vairapido.api.entity.enums.PaymentMethod;
 import com.vairapido.api.entity.enums.TripStatus;
 import com.vairapido.api.entity.enums.UserRole;
@@ -170,6 +171,10 @@ public class WhatsappCommandService {
 
             if (isReturnTripSearchPending(session.getMetadata())) {
                 return handleReturnTripSearchAnswer(session, messageText);
+            }
+
+            if (isPassengerFareTypeSelectionPending(session.getMetadata())) {
+                return handlePassengerFareTypeSelection(session, normalizedMessage);
             }
 
             if (WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())) {
@@ -2448,7 +2453,8 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
             BookingRequest returnRequest = new BookingRequest()
                     .setTripId(returnTrip.getId())
                     .setPassengerId(passenger.getId())
-                    .setSeatNumber(returnSeatNumber);
+                    .setSeatNumber(returnSeatNumber)
+                    .setPassengerFareType(resolvePassengerFareTypeFromMetadata(metadata));
 
             return bookingService.create(returnRequest);
 
@@ -3415,6 +3421,10 @@ private TripSearchInput parseTripSearch(String messageText) {
 
             updateSessionPassenger(session, passenger);
 
+            if (!hasPassengerFareType(metadata)) {
+                return askPassengerFareType(session, metadata, passenger);
+            }
+
             if (isAngolaTermsRequired(metadata) && !isAngolaTermsAccepted(metadata)) {
                 String termsMetadata = appendMetadata(
                         metadata,
@@ -3885,6 +3895,25 @@ private TripSearchInput parseTripSearch(String messageText) {
                         "Não encontrei os dados confirmados do passageiro.\n\nQual é o nome completo do passageiro?");
             }
 
+            if (!hasPassengerFareType(session.getMetadata())) {
+                try {
+                    Passenger passenger = passengerRepository.findById(UUID.fromString(passengerId))
+                            .orElseThrow(() -> new IllegalArgumentException("Passageiro não encontrado."));
+
+                    return askPassengerFareType(session, session.getMetadata(), passenger);
+
+                } catch (Exception exception) {
+                    updateSessionStep(
+                            session,
+                            WhatsappConversationStep.ASKING_FULL_NAME,
+                            session.getMetadata());
+
+                    return allowed(
+                            "ASK_PASSENGER_NAME",
+                            "Não consegui confirmar o passageiro informado.\n\nQual é o nome completo do passageiro?");
+                }
+            }
+
             if (isAngolaTermsRequired(session.getMetadata())
                     && !isAngolaTermsAccepted(session.getMetadata())) {
                 String metadata = appendMetadata(
@@ -3998,6 +4027,218 @@ private TripSearchInput parseTripSearch(String messageText) {
                 2️⃣ Cancelar
                 """.trim();
     }
+
+    private boolean isPassengerFareTypeSelectionPending(String metadata) {
+        String pending = extractMetadataValue(metadata, "passenger_fare_type_selection_pending");
+        return "true".equalsIgnoreCase(pending);
+    }
+
+    private boolean hasPassengerFareType(String metadata) {
+        String raw = extractMetadataValue(metadata, "passenger_fare_type");
+
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+
+        try {
+            PassengerFareType.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    private WhatsappCommandResult askPassengerFareType(
+            WhatsappSessionResponse session,
+            String metadata,
+            Passenger passenger) {
+        String adjustedMetadata = metadata;
+
+        if (passenger != null) {
+            PassengerDocumentType documentType = getPassengerDocumentType(passenger);
+
+            adjustedMetadata = appendMetadata(
+                    adjustedMetadata,
+                    "confirmed_passenger_id=" + passenger.getId(),
+                    "confirmed_passenger_name=" + passenger.getFullName(),
+                    "confirmed_document_type=" + documentType,
+                    "confirmed_document_number=" + passenger.getDocumentNumber(),
+                    "passenger_id=" + passenger.getId(),
+                    "passenger_name=" + passenger.getFullName(),
+                    "passenger_document_type=" + documentType,
+                    "passenger_document=" + passenger.getDocumentNumber());
+        }
+
+        adjustedMetadata = appendMetadata(
+                adjustedMetadata,
+                "passenger_fare_type_selection_pending=true");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                adjustedMetadata);
+
+        String passengerName = passenger != null && passenger.getFullName() != null
+                ? passenger.getFullName()
+                : "passageiro";
+
+        return allowed(
+                "ASK_PASSENGER_FARE_TYPE",
+                String.join("\n",
+                        "👤 Tipo de passageiro",
+                        "",
+                        "Passageiro: " + passengerName,
+                        "",
+                        "Informe quem vai viajar:",
+                        "",
+                        "1️⃣ Adulto",
+                        "2️⃣ Criança acompanhada com poltrona",
+                        "3️⃣ Menor desacompanhado",
+                        "",
+                        "Você pode responder com o número ou escrevendo:",
+                        "- adulto",
+                        "- criança",
+                        "- menor desacompanhado",
+                        "",
+                        "Obs.: criança de colo sem poltrona será liberada no próximo módulo."));
+    }
+
+    private WhatsappCommandResult handlePassengerFareTypeSelection(
+            WhatsappSessionResponse session,
+            String normalizedMessage) {
+        PassengerFareType passengerFareType = resolveSelectedPassengerFareType(normalizedMessage);
+
+        if (PassengerFareType.INFANT_ON_LAP.equals(passengerFareType)) {
+            return allowed(
+                    "ASK_PASSENGER_FARE_TYPE",
+                    String.join("\n",
+                            "Criança de colo sem poltrona será liberada no próximo módulo.",
+                            "",
+                            "Por enquanto escolha uma das opções:",
+                            "",
+                            "1️⃣ Adulto",
+                            "2️⃣ Criança acompanhada com poltrona",
+                            "3️⃣ Menor desacompanhado"));
+        }
+
+        if (passengerFareType == null) {
+            return allowed(
+                    "ASK_PASSENGER_FARE_TYPE",
+                    String.join("\n",
+                            "Não consegui identificar o tipo de passageiro.",
+                            "",
+                            "Responda:",
+                            "",
+                            "1️⃣ Adulto",
+                            "2️⃣ Criança acompanhada com poltrona",
+                            "3️⃣ Menor desacompanhado"));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "passenger_fare_type_selection_pending=false",
+                "passenger_fare_type=" + passengerFareType,
+                "passenger_fare_label=" + passengerFareTypeLabel(passengerFareType));
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        Passenger passenger = resolveConfirmedPassengerFromMetadata(session, metadata);
+
+        if (passenger == null) {
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.ASKING_FULL_NAME,
+                    metadata);
+
+            return allowed(
+                    "ASK_PASSENGER_NAME",
+                    "Não encontrei os dados do passageiro.\\n\\nQual é o nome completo do passageiro?");
+        }
+
+        session.setMetadata(metadata);
+
+        return createBookingWithPassenger(session, passenger);
+    }
+
+
+    private boolean isOptionFour(String normalizedMessage) {
+        Integer option = extractSelectedOptionNumber(normalizedMessage);
+        return option != null && option == 4;
+    }
+    private PassengerFareType resolveSelectedPassengerFareType(String normalizedMessage) {
+        if (normalizedMessage == null || normalizedMessage.isBlank()) {
+            return null;
+        }
+
+        if (isOptionOne(normalizedMessage)
+                || containsAny(normalizedMessage, "adulto", "maior")) {
+            return PassengerFareType.ADULT;
+        }
+
+        if (isOptionTwo(normalizedMessage)
+                || containsAny(normalizedMessage, "crianca", "criança", "infantil", "acompanhada")) {
+            return PassengerFareType.CHILD_WITH_SEAT;
+        }
+
+        if (isOptionThree(normalizedMessage)
+                || containsAny(normalizedMessage, "menor", "desacompanhado", "adolescente")) {
+            return PassengerFareType.MINOR_UNACCOMPANIED;
+        }
+
+        if (isOptionFour(normalizedMessage)
+                || containsAny(normalizedMessage, "colo", "bebe", "bebê")) {
+            return PassengerFareType.INFANT_ON_LAP;
+        }
+
+        return null;
+    }
+
+    private PassengerFareType resolvePassengerFareTypeFromMetadata(String metadata) {
+        String raw = extractMetadataValue(metadata, "passenger_fare_type");
+
+        if (raw == null || raw.isBlank()) {
+            return PassengerFareType.ADULT;
+        }
+
+        try {
+            return PassengerFareType.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            return PassengerFareType.ADULT;
+        }
+    }
+
+    private String passengerFareTypeLabel(PassengerFareType passengerFareType) {
+        if (passengerFareType == null) {
+            return "Adulto";
+        }
+
+        return switch (passengerFareType) {
+            case ADULT -> "Adulto";
+            case CHILD_WITH_SEAT -> "Criança acompanhada com poltrona";
+            case MINOR_UNACCOMPANIED -> "Menor desacompanhado";
+            case INFANT_ON_LAP -> "Criança de colo";
+        };
+    }
+
+    private Passenger resolveConfirmedPassengerFromMetadata(
+            WhatsappSessionResponse session,
+            String metadata) {
+        String passengerId = extractMetadataValue(metadata, "confirmed_passenger_id");
+
+        if (passengerId != null && !passengerId.isBlank()) {
+            try {
+                return passengerRepository.findById(UUID.fromString(passengerId)).orElse(null);
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }
+
+        return findRealPassengerForWhatsapp(session).orElse(null);
+    }
+
     private WhatsappCommandResult createBookingWithPassenger(
             WhatsappSessionResponse session,
             Passenger passenger) {
@@ -4048,6 +4289,10 @@ private TripSearchInput parseTripSearch(String messageText) {
                 "passenger_document_type=" + documentType,
                 "passenger_document=" + passenger.getDocumentNumber());
 
+        if (!hasPassengerFareType(preBookingMetadata)) {
+            return askPassengerFareType(session, preBookingMetadata, passenger);
+        }
+
         if (isAngolaTermsRequired(preBookingMetadata) && !isAngolaTermsAccepted(preBookingMetadata)) {
             String termsMetadata = appendMetadata(
                     preBookingMetadata,
@@ -4075,7 +4320,8 @@ private TripSearchInput parseTripSearch(String messageText) {
             BookingRequest request = new BookingRequest()
                     .setTripId(trip.getId())
                     .setPassengerId(passenger.getId())
-                    .setSeatNumber(seatNumber);
+                    .setSeatNumber(seatNumber)
+                    .setPassengerFareType(resolvePassengerFareTypeFromMetadata(preBookingMetadata));
 
             BookingResponse booking = bookingService.create(request);
             BookingResponse returnBooking = createReturnBookingIfNeeded(session, passenger);
@@ -4731,6 +4977,7 @@ private TripSearchInput parseTripSearch(String messageText) {
             LocalDate returnDate) {
     }
 }
+
 
 
 
