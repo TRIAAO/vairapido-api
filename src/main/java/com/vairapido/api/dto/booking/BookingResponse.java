@@ -2,6 +2,7 @@ package com.vairapido.api.dto.booking;
 
 import com.vairapido.api.entity.enums.BookingStatus;
 import com.vairapido.api.entity.enums.PassengerFareType;
+import com.vairapido.api.entity.enums.TripSegmentType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ public class BookingResponse {
     private PassengerFareType passengerFareType;
     private Integer passengerAge;
     private BigDecimal farePercentage;
+    private TripSegmentType tripSegmentType;
     private String childGuardianName;
     private String childGuardianPhone;
     private BookingStatus status;
@@ -258,6 +260,15 @@ public class BookingResponse {
 
     public BookingResponse setChildGuardianPhone(String childGuardianPhone) {
         this.childGuardianPhone = childGuardianPhone;
+        return this;
+    }
+
+    public TripSegmentType getTripSegmentType() {
+        return tripSegmentType;
+    }
+
+    public BookingResponse setTripSegmentType(TripSegmentType tripSegmentType) {
+        this.tripSegmentType = tripSegmentType;
         return this;
     }
 

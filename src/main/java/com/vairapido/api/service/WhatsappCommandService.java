@@ -25,6 +25,7 @@ import com.vairapido.api.entity.enums.PassengerDocumentType;
 import com.vairapido.api.entity.enums.PassengerFareType;
 import com.vairapido.api.entity.enums.PaymentMethod;
 import com.vairapido.api.entity.enums.TripStatus;
+import com.vairapido.api.entity.enums.TripSegmentType;
 import com.vairapido.api.entity.enums.UserRole;
 import com.vairapido.api.entity.enums.UserStatus;
 import com.vairapido.api.entity.enums.WhatsappConversationStep;
@@ -2739,6 +2740,16 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
     }
 
 
+    private TripSegmentType resolveOutboundTripSegmentType(String metadata) {
+        String returnTripId = extractMetadataValue(metadata, "return_selected_trip_id");
+
+        if (returnTripId != null && !returnTripId.isBlank()) {
+            return TripSegmentType.OUTBOUND;
+        }
+
+        return TripSegmentType.SINGLE;
+    }
+
     private BookingResponse createReturnBookingIfNeeded(
             WhatsappSessionResponse session,
             Passenger passenger) {
@@ -2768,6 +2779,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                     .setPassengerId(passenger.getId())
                     .setSeatNumber(returnSeatNumber)
                     .setPassengerFareType(resolvePassengerFareTypeFromMetadata(metadata))
+                    .setTripSegmentType(TripSegmentType.RETURN)
                     .setChildGuardianName(extractMetadataValue(metadata, "child_guardian_name"))
                     .setChildGuardianPhone(extractMetadataValue(metadata, "child_guardian_phone"));
 
@@ -5153,6 +5165,7 @@ private TripSearchInput parseTripSearch(String messageText) {
                     .setPassengerId(passenger.getId())
                     .setSeatNumber(seatNumber)
                     .setPassengerFareType(resolvePassengerFareTypeFromMetadata(preBookingMetadata))
+                    .setTripSegmentType(resolveOutboundTripSegmentType(preBookingMetadata))
                     .setChildGuardianName(extractMetadataValue(preBookingMetadata, "child_guardian_name"))
                     .setChildGuardianPhone(extractMetadataValue(preBookingMetadata, "child_guardian_phone"));
 

@@ -3,6 +3,7 @@ package com.vairapido.api.dto.booking;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import com.vairapido.api.entity.enums.PassengerFareType;
+import com.vairapido.api.entity.enums.TripSegmentType;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
@@ -21,6 +22,7 @@ public class BookingRequest {
     private Integer seatNumber;
 
     private PassengerFareType passengerFareType;
+    private TripSegmentType tripSegmentType;
 
     private String childGuardianName;
     private String childGuardianPhone;
@@ -40,6 +42,15 @@ public class BookingRequest {
 
     public BookingRequest setChildGuardianPhone(String childGuardianPhone) {
         this.childGuardianPhone = childGuardianPhone;
+        return this;
+    }
+
+    public TripSegmentType getTripSegmentType() {
+        return tripSegmentType;
+    }
+
+    public BookingRequest setTripSegmentType(TripSegmentType tripSegmentType) {
+        this.tripSegmentType = tripSegmentType;
         return this;
     }
 

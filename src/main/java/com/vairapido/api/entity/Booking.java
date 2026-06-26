@@ -2,6 +2,7 @@ package com.vairapido.api.entity;
 
 import com.vairapido.api.entity.enums.BookingStatus;
 import com.vairapido.api.entity.enums.PassengerFareType;
+import com.vairapido.api.entity.enums.TripSegmentType;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -36,6 +37,10 @@ public class Booking {
 
     @Column(name = "fare_percentage", nullable = false, precision = 5, scale = 2)
     private BigDecimal farePercentage = BigDecimal.valueOf(100);
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "trip_segment_type", nullable = false, length = 20)
+    private TripSegmentType tripSegmentType = TripSegmentType.SINGLE;
 
     @Column(name = "child_guardian_name", length = 160)
     private String childGuardianName;
@@ -92,6 +97,10 @@ public class Booking {
 
         if (this.farePercentage == null) {
             this.farePercentage = BigDecimal.valueOf(100);
+        }
+
+        if (this.tripSegmentType == null) {
+            this.tripSegmentType = TripSegmentType.SINGLE;
         }
     }
 
@@ -173,6 +182,15 @@ public class Booking {
 
     public Booking setChildGuardianPhone(String childGuardianPhone) {
         this.childGuardianPhone = childGuardianPhone;
+        return this;
+    }
+
+    public TripSegmentType getTripSegmentType() {
+        return tripSegmentType;
+    }
+
+    public Booking setTripSegmentType(TripSegmentType tripSegmentType) {
+        this.tripSegmentType = tripSegmentType;
         return this;
     }
 

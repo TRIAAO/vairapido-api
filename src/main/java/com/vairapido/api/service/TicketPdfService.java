@@ -13,6 +13,7 @@ import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.enums.PassengerDocumentType;
 import com.vairapido.api.entity.enums.PassengerFareType;
+import com.vairapido.api.entity.enums.TripSegmentType;
 import com.vairapido.api.exception.NotFoundException;
 import com.vairapido.api.repository.TicketRepository;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -76,13 +77,14 @@ public class TicketPdfService {
             TransportCompany company = trip.getTransportCompany();
             TravelRoute route = trip.getRoute();
 
+            String ticketSegmentLabel = resolveTicketSegmentLabel(booking);
             PDImageXObject qrImage = createQrImage(document, ticket.getValidationUrl());
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
                 drawBackground(content);
-                drawHeader(content, ticket);
+                drawHeader(content, ticket, ticketSegmentLabel);
                 drawMainTicketCard(content);
-                drawSuccessBanner(content);
+                drawSuccessBanner(content, ticketSegmentLabel);
                 drawTicketMeta(content, ticket, booking, company);
                 drawRouteSection(content, route, trip, booking);
                 drawPassengerCard(content, booking, passenger, route);
@@ -99,6 +101,40 @@ public class TicketPdfService {
         } catch (IOException | WriterException exception) {
             throw new IllegalStateException("Erro ao gerar PDF do bilhete.", exception);
         }
+    }
+
+    private String resolveTicketSegmentLabel(Booking booking) {
+        TripSegmentType segmentType = booking != null ? booking.getTripSegmentType() : null;
+
+        if (segmentType == null) {
+            return "BILHETE DE PASSAGEM";
+        }
+
+        return switch (segmentType) {
+            case OUTBOUND -> "BILHETE DE IDA";
+            case RETURN -> "BILHETE DE VOLTA";
+            case SINGLE -> "BILHETE DE PASSAGEM";
+        };
+    }
+
+    private String resolveTicketSegmentHeader(String ticketSegmentLabel) {
+        if (ticketSegmentLabel == null || ticketSegmentLabel.isBlank()) {
+            return "BILHETE DE PASSAGEM";
+        }
+
+        return ticketSegmentLabel;
+    }
+
+    private String resolveSuccessBannerTitle(String ticketSegmentLabel) {
+        if ("BILHETE DE IDA".equalsIgnoreCase(ticketSegmentLabel)) {
+            return "Bilhete de ida confirmado";
+        }
+
+        if ("BILHETE DE VOLTA".equalsIgnoreCase(ticketSegmentLabel)) {
+            return "Bilhete de volta confirmado";
+        }
+
+        return "Bilhete confirmado";
     }
 
     private PDImageXObject createQrImage(PDDocument document, String validationUrl)
@@ -126,7 +162,11 @@ public class TicketPdfService {
         content.fill();
     }
 
-    private void drawHeader(PDPageContentStream content, Ticket ticket) throws IOException {
+    private void drawHeader(
+            PDPageContentStream content,
+            Ticket ticket,
+            String ticketSegmentLabel
+    ) throws IOException {
         content.setNonStrokingColor(13, 27, 42);
         content.addRect(0, 735, 595, 107);
         content.fill();
@@ -168,7 +208,7 @@ public class TicketPdfService {
         content.setNonStrokingColor(255, 255, 255);
         content.setFont(PDType1Font.HELVETICA_BOLD, 12);
         content.newLineAtOffset(405, 805);
-        content.showText("BILHETE DE PASSAGEM");
+        content.showText(limitText(resolveTicketSegmentHeader(ticketSegmentLabel), 24));
         content.endText();
 
         content.setNonStrokingColor(34, 197, 94);
@@ -190,6 +230,7 @@ public class TicketPdfService {
         content.endText();
     }
 
+
     private void drawMainTicketCard(PDPageContentStream content) throws IOException {
         content.setNonStrokingColor(255, 255, 255);
         content.addRect(28, 55, 539, 650);
@@ -200,7 +241,10 @@ public class TicketPdfService {
         content.stroke();
     }
 
-    private void drawSuccessBanner(PDPageContentStream content) throws IOException {
+    private void drawSuccessBanner(
+            PDPageContentStream content,
+            String ticketSegmentLabel
+    ) throws IOException {
         content.setNonStrokingColor(240, 253, 244);
         content.addRect(45, 655, 505, 40);
         content.fill();
@@ -213,7 +257,7 @@ public class TicketPdfService {
         content.setNonStrokingColor(22, 163, 74);
         content.setFont(PDType1Font.HELVETICA_BOLD, 15);
         content.newLineAtOffset(65, 678);
-        content.showText("Bilhete confirmado");
+        content.showText(resolveSuccessBannerTitle(ticketSegmentLabel));
         content.endText();
 
         content.beginText();
@@ -223,6 +267,7 @@ public class TicketPdfService {
         content.showText("Apresente este bilhete no momento do embarque.");
         content.endText();
     }
+
 
     private void drawTicketMeta(
             PDPageContentStream content,

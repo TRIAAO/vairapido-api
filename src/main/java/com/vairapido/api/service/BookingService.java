@@ -11,6 +11,7 @@ import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.enums.BookingStatus;
 import com.vairapido.api.entity.enums.PassengerFareType;
+import com.vairapido.api.entity.enums.TripSegmentType;
 import com.vairapido.api.entity.enums.PaymentStatus;
 import com.vairapido.api.entity.enums.TripStatus;
 import com.vairapido.api.exception.NotFoundException;
@@ -70,6 +71,7 @@ public class BookingService {
 
         BigDecimal farePercentage = resolveFarePercentage(passengerFareType);
         BigDecimal amount = calculateFareAmount(trip.getPrice(), farePercentage);
+        TripSegmentType tripSegmentType = resolveTripSegmentType(request);
 
         validateTripForBooking(trip);
         validateSeatNumber(trip, request.getSeatNumber());
@@ -93,6 +95,7 @@ public class BookingService {
                 .setPassengerFareType(passengerFareType)
                 .setPassengerAge(passengerAge)
                 .setFarePercentage(farePercentage)
+                .setTripSegmentType(tripSegmentType)
                 .setChildGuardianName(request.getChildGuardianName())
                 .setChildGuardianPhone(request.getChildGuardianPhone())
                 .setBookingCode(generateBookingCode())
@@ -312,6 +315,14 @@ public class BookingService {
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
+    private TripSegmentType resolveTripSegmentType(BookingRequest request) {
+        if (request == null || request.getTripSegmentType() == null) {
+            return TripSegmentType.SINGLE;
+        }
+
+        return request.getTripSegmentType();
+    }
+
     private void validateTripForBooking(Trip trip) {
         if (trip.getStatus() != TripStatus.SCHEDULED) {
             throw new IllegalArgumentException("A viagem não está disponível para reserva.");
@@ -383,6 +394,7 @@ public class BookingService {
                 .setPassengerFareType(booking.getPassengerFareType())
                 .setPassengerAge(booking.getPassengerAge())
                 .setFarePercentage(booking.getFarePercentage())
+                .setTripSegmentType(booking.getTripSegmentType())
                 .setChildGuardianName(booking.getChildGuardianName())
                 .setChildGuardianPhone(booking.getChildGuardianPhone())
                 .setStatus(booking.getStatus())
