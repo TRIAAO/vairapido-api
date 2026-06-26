@@ -29,6 +29,11 @@ public class TicketResponse {
     private String childGuardianName;
     private String childGuardianPhone;
 
+    private String minorGuardianName;
+    private String minorGuardianPhone;
+    private String minorPickupResponsibleName;
+    private String minorPickupResponsiblePhone;
+
     private String companyName;
     private String companyTradeName;
     private String originCity;
@@ -191,6 +196,42 @@ public class TicketResponse {
 
     public TicketResponse setChildGuardianPhone(String childGuardianPhone) {
         this.childGuardianPhone = childGuardianPhone;
+        return this;
+    }
+
+    public String getMinorGuardianName() {
+        return minorGuardianName;
+    }
+
+    public TicketResponse setMinorGuardianName(String minorGuardianName) {
+        this.minorGuardianName = minorGuardianName;
+        return this;
+    }
+
+    public String getMinorGuardianPhone() {
+        return minorGuardianPhone;
+    }
+
+    public TicketResponse setMinorGuardianPhone(String minorGuardianPhone) {
+        this.minorGuardianPhone = minorGuardianPhone;
+        return this;
+    }
+
+    public String getMinorPickupResponsibleName() {
+        return minorPickupResponsibleName;
+    }
+
+    public TicketResponse setMinorPickupResponsibleName(String minorPickupResponsibleName) {
+        this.minorPickupResponsibleName = minorPickupResponsibleName;
+        return this;
+    }
+
+    public String getMinorPickupResponsiblePhone() {
+        return minorPickupResponsiblePhone;
+    }
+
+    public TicketResponse setMinorPickupResponsiblePhone(String minorPickupResponsiblePhone) {
+        this.minorPickupResponsiblePhone = minorPickupResponsiblePhone;
         return this;
     }
 

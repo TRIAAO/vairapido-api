@@ -374,7 +374,7 @@ public class TicketPdfService {
         float x = 45;
         float y = 270;
         float width = 235;
-        float height = 190;
+        float height = 210;
 
         content.setNonStrokingColor(255, 255, 255);
         content.addRect(x, y, width, height);
@@ -404,16 +404,35 @@ public class TicketPdfService {
                 && booking.getChildGuardianName() != null
                 && !booking.getChildGuardianName().isBlank();
 
-        drawPassengerLine(content, "NOME COMPLETO", passenger != null ? passenger.getFullName() : "-", x + 18, y + 135);
-        drawPassengerLine(content, documentLabel, documentNumber, x + 18, y + 105);
-        drawPassengerLine(content, "TIPO DE PASSAGEIRO", resolvePassengerFareTypeLabel(booking), x + 18, y + 75);
+        boolean minorUnaccompanied = booking != null
+                && PassengerFareType.MINOR_UNACCOMPANIED.equals(booking.getPassengerFareType());
+
+        drawPassengerLine(content, "NOME COMPLETO", passenger != null ? passenger.getFullName() : "-", x + 18, y + 155);
+        drawPassengerLine(content, documentLabel, documentNumber, x + 18, y + 128);
+        drawPassengerLine(content, "TIPO DE PASSAGEIRO", resolvePassengerFareTypeLabel(booking), x + 18, y + 101);
 
         if (childWithGuardian) {
-            drawPassengerLine(content, "RESPONSAVEL", booking.getChildGuardianName(), x + 18, y + 45);
-            drawPassengerLine(content, "TEL. RESPONSAVEL", booking.getChildGuardianPhone(), x + 18, y + 15);
+            drawPassengerLine(content, "RESPONSAVEL", booking.getChildGuardianName(), x + 18, y + 74);
+            drawPassengerLine(content, "TEL. RESPONSAVEL", booking.getChildGuardianPhone(), x + 18, y + 47);
+        } else if (minorUnaccompanied) {
+            drawPassengerLine(content, "RESP. AUTORIZA", booking.getMinorGuardianName(), x + 18, y + 74);
+            drawPassengerLine(content, "TEL. RESP.", booking.getMinorGuardianPhone(), x + 18, y + 47);
+            drawPassengerLine(content, "RECEBE DESTINO", booking.getMinorPickupResponsibleName(), x + 18, y + 20);
         } else {
-            drawPassengerLine(content, "TELEFONE / WHATSAPP", passenger != null ? passenger.getWhatsapp() : "-", x + 18, y + 45);
+            drawPassengerLine(content, "TELEFONE / WHATSAPP", passenger != null ? passenger.getWhatsapp() : "-", x + 18, y + 74);
         }
+    }
+
+    private String buildMinorDestinationPhonePdfNote(Booking booking) {
+        if (booking == null || !PassengerFareType.MINOR_UNACCOMPANIED.equals(booking.getPassengerFareType())) {
+            return "";
+        }
+
+        if (booking.getMinorPickupResponsiblePhone() == null || booking.getMinorPickupResponsiblePhone().isBlank()) {
+            return "";
+        }
+
+        return "Telefone de quem recebe no destino: " + booking.getMinorPickupResponsiblePhone();
     }
 
     private String resolvePassengerFareTypeLabel(Booking booking) {

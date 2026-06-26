@@ -168,6 +168,10 @@ public class TicketService {
                 .setFarePercentage(booking.getFarePercentage())
                 .setChildGuardianName(booking.getChildGuardianName())
                 .setChildGuardianPhone(booking.getChildGuardianPhone())
+                .setMinorGuardianName(booking.getMinorGuardianName())
+                .setMinorGuardianPhone(booking.getMinorGuardianPhone())
+                .setMinorPickupResponsibleName(booking.getMinorPickupResponsibleName())
+                .setMinorPickupResponsiblePhone(booking.getMinorPickupResponsiblePhone())
 
                 .setCompanyName(company.getName())
                 .setCompanyTradeName(company.getTradeName())

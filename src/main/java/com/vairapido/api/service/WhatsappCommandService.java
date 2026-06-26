@@ -3105,7 +3105,9 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                     .append("%");
         }
 
-        if (ticket.getChildGuardianName() != null && !ticket.getChildGuardianName().isBlank()) {
+        if (PassengerFareType.CHILD_WITH_SEAT.equals(ticket.getPassengerFareType())
+                && ticket.getChildGuardianName() != null
+                && !ticket.getChildGuardianName().isBlank()) {
             builder
                     .append("\n👨‍👩‍👧 Responsável: ")
                     .append(ticket.getChildGuardianName());
@@ -3114,6 +3116,34 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                 builder
                         .append(" | ")
                         .append(ticket.getChildGuardianPhone());
+            }
+        }
+
+        if (PassengerFareType.MINOR_UNACCOMPANIED.equals(ticket.getPassengerFareType())) {
+            if (ticket.getMinorGuardianName() != null && !ticket.getMinorGuardianName().isBlank()) {
+                builder
+                        .append("\n🧾 Responsável que autoriza: ")
+                        .append(ticket.getMinorGuardianName());
+
+                if (ticket.getMinorGuardianPhone() != null && !ticket.getMinorGuardianPhone().isBlank()) {
+                    builder
+                            .append(" | ")
+                            .append(ticket.getMinorGuardianPhone());
+                }
+            }
+
+            if (ticket.getMinorPickupResponsibleName() != null
+                    && !ticket.getMinorPickupResponsibleName().isBlank()) {
+                builder
+                        .append("\n📍 Recebido no destino por: ")
+                        .append(ticket.getMinorPickupResponsibleName());
+
+                if (ticket.getMinorPickupResponsiblePhone() != null
+                        && !ticket.getMinorPickupResponsiblePhone().isBlank()) {
+                    builder
+                            .append(" | ")
+                            .append(ticket.getMinorPickupResponsiblePhone());
+                }
             }
         }
 
