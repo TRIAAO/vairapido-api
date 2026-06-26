@@ -1,6 +1,7 @@
 package com.vairapido.api.entity;
 
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.PassengerFareType;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -25,6 +26,16 @@ public class Booking {
 
     @Column(name = "seat_number", nullable = false)
     private Integer seatNumber;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "passenger_fare_type", nullable = false, length = 40)
+    private PassengerFareType passengerFareType = PassengerFareType.ADULT;
+
+    @Column(name = "passenger_age")
+    private Integer passengerAge;
+
+    @Column(name = "fare_percentage", nullable = false, precision = 5, scale = 2)
+    private BigDecimal farePercentage = BigDecimal.valueOf(100);
 
     @Column(name = "booking_code", nullable = false, unique = true, length = 40)
     private String bookingCode;
@@ -68,6 +79,14 @@ public class Booking {
         if (this.currency == null || this.currency.isBlank()) {
             this.currency = "BRL";
         }
+
+        if (this.passengerFareType == null) {
+            this.passengerFareType = PassengerFareType.ADULT;
+        }
+
+        if (this.farePercentage == null) {
+            this.farePercentage = BigDecimal.valueOf(100);
+        }
     }
 
     @PreUpdate
@@ -103,6 +122,33 @@ public class Booking {
 
     public Booking setSeatNumber(Integer seatNumber) {
         this.seatNumber = seatNumber;
+        return this;
+    }
+
+    public PassengerFareType getPassengerFareType() {
+        return passengerFareType;
+    }
+
+    public Booking setPassengerFareType(PassengerFareType passengerFareType) {
+        this.passengerFareType = passengerFareType;
+        return this;
+    }
+
+    public Integer getPassengerAge() {
+        return passengerAge;
+    }
+
+    public Booking setPassengerAge(Integer passengerAge) {
+        this.passengerAge = passengerAge;
+        return this;
+    }
+
+    public BigDecimal getFarePercentage() {
+        return farePercentage;
+    }
+
+    public Booking setFarePercentage(BigDecimal farePercentage) {
+        this.farePercentage = farePercentage;
         return this;
     }
 

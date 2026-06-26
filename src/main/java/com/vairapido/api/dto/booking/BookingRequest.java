@@ -2,6 +2,7 @@ package com.vairapido.api.dto.booking;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import com.vairapido.api.entity.enums.PassengerFareType;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
@@ -18,6 +19,8 @@ public class BookingRequest {
     @Min(value = 1, message = "A poltrona deve ser maior que zero.")
     @Max(value = 99, message = "A poltrona deve ter no máximo 99.")
     private Integer seatNumber;
+
+    private PassengerFareType passengerFareType;
 
     public UUID getTripId() {
         return tripId;
@@ -39,6 +42,15 @@ public class BookingRequest {
 
     public Integer getSeatNumber() {
         return seatNumber;
+    }
+
+    public PassengerFareType getPassengerFareType() {
+        return passengerFareType;
+    }
+
+    public BookingRequest setPassengerFareType(PassengerFareType passengerFareType) {
+        this.passengerFareType = passengerFareType;
+        return this;
     }
 
     public BookingRequest setSeatNumber(Integer seatNumber) {

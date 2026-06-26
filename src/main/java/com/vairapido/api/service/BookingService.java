@@ -10,6 +10,7 @@ import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.PassengerFareType;
 import com.vairapido.api.entity.enums.PaymentStatus;
 import com.vairapido.api.entity.enums.TripStatus;
 import com.vairapido.api.exception.NotFoundException;
@@ -19,6 +20,11 @@ import com.vairapido.api.repository.PaymentRepository;
 import com.vairapido.api.repository.TripRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.Period;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -58,6 +64,13 @@ public class BookingService {
         Passenger passenger = passengerRepository.findById(request.getPassengerId())
                 .orElseThrow(() -> new NotFoundException("Passageiro não encontrado."));
 
+        PassengerFareType passengerFareType = resolvePassengerFareType(request, passenger);
+        Integer passengerAge = calculatePassengerAge(passenger);
+        validatePassengerFareType(passengerFareType, passengerAge);
+
+        BigDecimal farePercentage = resolveFarePercentage(passengerFareType);
+        BigDecimal amount = calculateFareAmount(trip.getPrice(), farePercentage);
+
         validateTripForBooking(trip);
         validateSeatNumber(trip, request.getSeatNumber());
 
@@ -77,9 +90,12 @@ public class BookingService {
                 .setTrip(trip)
                 .setPassenger(passenger)
                 .setSeatNumber(request.getSeatNumber())
+                .setPassengerFareType(passengerFareType)
+                .setPassengerAge(passengerAge)
+                .setFarePercentage(farePercentage)
                 .setBookingCode(generateBookingCode())
                 .setStatus(BookingStatus.PENDING_PAYMENT)
-                .setAmount(trip.getPrice())
+                .setAmount(amount)
                 .setCurrency(trip.getCurrency())
                 .setExpiresAt(LocalDateTime.now().plusMinutes(15));
 
@@ -216,6 +232,84 @@ public class BookingService {
                         : expiredCount + " reservas vencidas foram expiradas e os assentos foram liberados.");
     }
 
+    private PassengerFareType resolvePassengerFareType(
+            BookingRequest request,
+            Passenger passenger) {
+        if (request.getPassengerFareType() != null) {
+            return request.getPassengerFareType();
+        }
+
+        Integer age = calculatePassengerAge(passenger);
+
+        if (age == null) {
+            return PassengerFareType.ADULT;
+        }
+
+        if (age <= 5) {
+            return PassengerFareType.INFANT_ON_LAP;
+        }
+
+        if (age <= 11) {
+            return PassengerFareType.CHILD_WITH_SEAT;
+        }
+
+        if (age <= 17) {
+            return PassengerFareType.MINOR_UNACCOMPANIED;
+        }
+
+        return PassengerFareType.ADULT;
+    }
+
+    private Integer calculatePassengerAge(Passenger passenger) {
+        if (passenger == null || passenger.getBirthDate() == null) {
+            return null;
+        }
+
+        return Period.between(passenger.getBirthDate(), LocalDate.now()).getYears();
+    }
+
+    private void validatePassengerFareType(
+            PassengerFareType passengerFareType,
+            Integer passengerAge) {
+        if (passengerFareType == null) {
+            return;
+        }
+
+        if (PassengerFareType.INFANT_ON_LAP.equals(passengerFareType)) {
+            throw new IllegalArgumentException(
+                    "Criança de colo sem poltrona será liberada no Módulo 79C. Para esta etapa, use criança com poltrona.");
+        }
+
+        if (passengerAge != null && passengerAge < 0) {
+            throw new IllegalArgumentException("Data de nascimento do passageiro inválida.");
+        }
+    }
+
+    private BigDecimal resolveFarePercentage(PassengerFareType passengerFareType) {
+        if (passengerFareType == null) {
+            return BigDecimal.valueOf(100);
+        }
+
+        return switch (passengerFareType) {
+            case CHILD_WITH_SEAT -> BigDecimal.valueOf(50);
+            case INFANT_ON_LAP -> BigDecimal.ZERO;
+            case MINOR_UNACCOMPANIED, ADULT -> BigDecimal.valueOf(100);
+        };
+    }
+
+    private BigDecimal calculateFareAmount(
+            BigDecimal baseAmount,
+            BigDecimal farePercentage) {
+        BigDecimal safeBaseAmount = baseAmount != null ? baseAmount : BigDecimal.ZERO;
+        BigDecimal safeFarePercentage = farePercentage != null
+                ? farePercentage
+                : BigDecimal.valueOf(100);
+
+        return safeBaseAmount
+                .multiply(safeFarePercentage)
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    }
+
     private void validateTripForBooking(Trip trip) {
         if (trip.getStatus() != TripStatus.SCHEDULED) {
             throw new IllegalArgumentException("A viagem não está disponível para reserva.");
@@ -284,6 +378,9 @@ public class BookingService {
                 .setPassengerWhatsapp(passenger.getWhatsapp())
 
                 .setSeatNumber(booking.getSeatNumber())
+                .setPassengerFareType(booking.getPassengerFareType())
+                .setPassengerAge(booking.getPassengerAge())
+                .setFarePercentage(booking.getFarePercentage())
                 .setStatus(booking.getStatus())
                 .setAmount(booking.getAmount())
                 .setCurrency(booking.getCurrency())

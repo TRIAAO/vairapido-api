@@ -1,6 +1,7 @@
 package com.vairapido.api.dto.booking;
 
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.PassengerFareType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,6 +31,9 @@ public class BookingResponse {
     private String passengerWhatsapp;
 
     private Integer seatNumber;
+    private PassengerFareType passengerFareType;
+    private Integer passengerAge;
+    private BigDecimal farePercentage;
     private BookingStatus status;
     private BigDecimal amount;
     private String currency;
@@ -207,6 +211,33 @@ public class BookingResponse {
 
     public BookingResponse setSeatNumber(Integer seatNumber) {
         this.seatNumber = seatNumber;
+        return this;
+    }
+
+    public PassengerFareType getPassengerFareType() {
+        return passengerFareType;
+    }
+
+    public BookingResponse setPassengerFareType(PassengerFareType passengerFareType) {
+        this.passengerFareType = passengerFareType;
+        return this;
+    }
+
+    public Integer getPassengerAge() {
+        return passengerAge;
+    }
+
+    public BookingResponse setPassengerAge(Integer passengerAge) {
+        this.passengerAge = passengerAge;
+        return this;
+    }
+
+    public BigDecimal getFarePercentage() {
+        return farePercentage;
+    }
+
+    public BookingResponse setFarePercentage(BigDecimal farePercentage) {
+        this.farePercentage = farePercentage;
         return this;
     }
 
