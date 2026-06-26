@@ -37,6 +37,12 @@ public class Booking {
     @Column(name = "fare_percentage", nullable = false, precision = 5, scale = 2)
     private BigDecimal farePercentage = BigDecimal.valueOf(100);
 
+    @Column(name = "child_guardian_name", length = 160)
+    private String childGuardianName;
+
+    @Column(name = "child_guardian_phone", length = 40)
+    private String childGuardianPhone;
+
     @Column(name = "booking_code", nullable = false, unique = true, length = 40)
     private String bookingCode;
 
@@ -149,6 +155,24 @@ public class Booking {
 
     public Booking setFarePercentage(BigDecimal farePercentage) {
         this.farePercentage = farePercentage;
+        return this;
+    }
+
+    public String getChildGuardianName() {
+        return childGuardianName;
+    }
+
+    public Booking setChildGuardianName(String childGuardianName) {
+        this.childGuardianName = childGuardianName;
+        return this;
+    }
+
+    public String getChildGuardianPhone() {
+        return childGuardianPhone;
+    }
+
+    public Booking setChildGuardianPhone(String childGuardianPhone) {
+        this.childGuardianPhone = childGuardianPhone;
         return this;
     }
 

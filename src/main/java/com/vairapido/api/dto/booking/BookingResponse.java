@@ -34,6 +34,8 @@ public class BookingResponse {
     private PassengerFareType passengerFareType;
     private Integer passengerAge;
     private BigDecimal farePercentage;
+    private String childGuardianName;
+    private String childGuardianPhone;
     private BookingStatus status;
     private BigDecimal amount;
     private String currency;
@@ -238,6 +240,24 @@ public class BookingResponse {
 
     public BookingResponse setFarePercentage(BigDecimal farePercentage) {
         this.farePercentage = farePercentage;
+        return this;
+    }
+
+    public String getChildGuardianName() {
+        return childGuardianName;
+    }
+
+    public BookingResponse setChildGuardianName(String childGuardianName) {
+        this.childGuardianName = childGuardianName;
+        return this;
+    }
+
+    public String getChildGuardianPhone() {
+        return childGuardianPhone;
+    }
+
+    public BookingResponse setChildGuardianPhone(String childGuardianPhone) {
+        this.childGuardianPhone = childGuardianPhone;
         return this;
     }
 

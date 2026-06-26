@@ -1,6 +1,7 @@
 package com.vairapido.api.dto.ticket;
 
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.PassengerFareType;
 import com.vairapido.api.entity.enums.TicketStatus;
 
 import java.math.BigDecimal;
@@ -22,6 +23,11 @@ public class TicketResponse {
     private String passengerName;
     private String passengerDocument;
     private String passengerWhatsapp;
+    private PassengerFareType passengerFareType;
+    private Integer passengerAge;
+    private BigDecimal farePercentage;
+    private String childGuardianName;
+    private String childGuardianPhone;
 
     private String companyName;
     private String companyTradeName;
@@ -140,6 +146,51 @@ public class TicketResponse {
 
     public TicketResponse setPassengerWhatsapp(String passengerWhatsapp) {
         this.passengerWhatsapp = passengerWhatsapp;
+        return this;
+    }
+
+    public PassengerFareType getPassengerFareType() {
+        return passengerFareType;
+    }
+
+    public TicketResponse setPassengerFareType(PassengerFareType passengerFareType) {
+        this.passengerFareType = passengerFareType;
+        return this;
+    }
+
+    public Integer getPassengerAge() {
+        return passengerAge;
+    }
+
+    public TicketResponse setPassengerAge(Integer passengerAge) {
+        this.passengerAge = passengerAge;
+        return this;
+    }
+
+    public BigDecimal getFarePercentage() {
+        return farePercentage;
+    }
+
+    public TicketResponse setFarePercentage(BigDecimal farePercentage) {
+        this.farePercentage = farePercentage;
+        return this;
+    }
+
+    public String getChildGuardianName() {
+        return childGuardianName;
+    }
+
+    public TicketResponse setChildGuardianName(String childGuardianName) {
+        this.childGuardianName = childGuardianName;
+        return this;
+    }
+
+    public String getChildGuardianPhone() {
+        return childGuardianPhone;
+    }
+
+    public TicketResponse setChildGuardianPhone(String childGuardianPhone) {
+        this.childGuardianPhone = childGuardianPhone;
         return this;
     }
 

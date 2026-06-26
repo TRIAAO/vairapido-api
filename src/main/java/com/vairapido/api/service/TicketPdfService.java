@@ -12,6 +12,7 @@ import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.enums.PassengerDocumentType;
+import com.vairapido.api.entity.enums.PassengerFareType;
 import com.vairapido.api.exception.NotFoundException;
 import com.vairapido.api.repository.TicketRepository;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -84,7 +85,7 @@ public class TicketPdfService {
                 drawSuccessBanner(content);
                 drawTicketMeta(content, ticket, booking, company);
                 drawRouteSection(content, route, trip, booking);
-                drawPassengerCard(content, passenger, route);
+                drawPassengerCard(content, booking, passenger, route);
                 drawQrCard(content, qrImage);
                 drawSummaryStrip(content, booking, company, route);
                 drawBoardingWarning(content);
@@ -321,6 +322,7 @@ public class TicketPdfService {
 
     private void drawPassengerCard(
             PDPageContentStream content,
+            Booking booking,
             Passenger passenger,
             TravelRoute route
     ) throws IOException {
@@ -352,11 +354,38 @@ public class TicketPdfService {
         String documentLabel = documentValidatorService.label(documentType);
         String documentNumber = safePassengerDocument(passenger, documentType);
 
+        boolean childWithGuardian = booking != null
+                && PassengerFareType.CHILD_WITH_SEAT.equals(booking.getPassengerFareType())
+                && booking.getChildGuardianName() != null
+                && !booking.getChildGuardianName().isBlank();
+
         drawPassengerLine(content, "NOME COMPLETO", passenger != null ? passenger.getFullName() : "-", x + 18, y + 135);
-        drawPassengerLine(content, documentLabel, documentNumber, x + 18, y + 95);
-        drawPassengerLine(content, "TELEFONE / WHATSAPP", passenger != null ? passenger.getWhatsapp() : "-", x + 18, y + 55);
-        drawPassengerLine(content, "TIPO DE PASSAGEIRO", "Adulto", x + 18, y + 18);
+        drawPassengerLine(content, documentLabel, documentNumber, x + 18, y + 105);
+        drawPassengerLine(content, "TIPO DE PASSAGEIRO", resolvePassengerFareTypeLabel(booking), x + 18, y + 75);
+
+        if (childWithGuardian) {
+            drawPassengerLine(content, "RESPONSAVEL", booking.getChildGuardianName(), x + 18, y + 45);
+            drawPassengerLine(content, "TEL. RESPONSAVEL", booking.getChildGuardianPhone(), x + 18, y + 15);
+        } else {
+            drawPassengerLine(content, "TELEFONE / WHATSAPP", passenger != null ? passenger.getWhatsapp() : "-", x + 18, y + 45);
+        }
     }
+
+    private String resolvePassengerFareTypeLabel(Booking booking) {
+        PassengerFareType fareType = booking != null ? booking.getPassengerFareType() : null;
+
+        if (fareType == null) {
+            return "Adulto";
+        }
+
+        return switch (fareType) {
+            case ADULT -> "Adulto";
+            case CHILD_WITH_SEAT -> "Crianca acompanhada";
+            case MINOR_UNACCOMPANIED -> "Menor desacompanhado";
+            case INFANT_ON_LAP -> "Crianca de colo";
+        };
+    }
+
 
     private void drawQrCard(
             PDPageContentStream content,

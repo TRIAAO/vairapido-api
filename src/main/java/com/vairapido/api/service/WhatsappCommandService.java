@@ -2495,7 +2495,9 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                     .setTripId(returnTrip.getId())
                     .setPassengerId(passenger.getId())
                     .setSeatNumber(returnSeatNumber)
-                    .setPassengerFareType(resolvePassengerFareTypeFromMetadata(metadata));
+                    .setPassengerFareType(resolvePassengerFareTypeFromMetadata(metadata))
+                    .setChildGuardianName(extractMetadataValue(metadata, "child_guardian_name"))
+                    .setChildGuardianPhone(extractMetadataValue(metadata, "child_guardian_phone"));
 
             return bookingService.create(returnRequest);
 
@@ -2618,6 +2620,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                 🎫 Código: %s
                 📄 Reserva: %s
                 🧍 Passageiro: %s
+                %s
                 📍 Trecho: %s → %s
                 🕒 Saída: %s
                 💺 Poltrona: %d
@@ -2629,6 +2632,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                 🎫 Código: %s
                 📄 Reserva: %s
                 🧍 Passageiro: %s
+                %s
                 📍 Trecho: %s → %s
                 🕒 Saída: %s
                 💺 Poltrona: %d
@@ -2642,6 +2646,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                 outboundTicket.getTicketCode(),
                 outboundTicket.getBookingCode(),
                 outboundTicket.getPassengerName(),
+                buildTicketPassengerFareCard(outboundTicket),
                 outboundTicket.getOriginCity(),
                 outboundTicket.getDestinationCity(),
                 outboundTicket.getDepartureAt() != null
@@ -2654,6 +2659,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                 returnTicket.getTicketCode(),
                 returnTicket.getBookingCode(),
                 returnTicket.getPassengerName(),
+                buildTicketPassengerFareCard(returnTicket),
                 returnTicket.getOriginCity(),
                 returnTicket.getDestinationCity(),
                 returnTicket.getDepartureAt() != null
@@ -2745,6 +2751,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                 ✅ Status do bilhete: %s
 
                 🧍 Passageiro: %s
+                %s
                 📍 Trecho: %s → %s
                 🕒 Saída: %s
                 🕘 Chegada: %s
@@ -2767,6 +2774,7 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                 ticket.getBookingCode(),
                 ticket.getStatus(),
                 ticket.getPassengerName(),
+                buildTicketPassengerFareCard(ticket),
                 ticket.getOriginCity(),
                 ticket.getDestinationCity(),
                 ticket.getDepartureAt() != null
@@ -2783,6 +2791,42 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                 buildTicketPdfUrl(ticket.getId())).trim();
     }
 
+
+    private String buildTicketPassengerFareCard(TicketResponse ticket) {
+        if (ticket == null || ticket.getPassengerFareType() == null) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+
+        builder
+                .append("👤 Tipo de passageiro: ")
+                .append(passengerFareTypeLabel(ticket.getPassengerFareType()));
+
+        if (ticket.getPassengerAge() != null) {
+            builder.append("\n🎂 Idade: ").append(ticket.getPassengerAge()).append(" anos");
+        }
+
+        if (ticket.getFarePercentage() != null) {
+            builder.append("\n🏷️ Tarifa aplicada: ")
+                    .append(ticket.getFarePercentage().toPlainString())
+                    .append("%");
+        }
+
+        if (ticket.getChildGuardianName() != null && !ticket.getChildGuardianName().isBlank()) {
+            builder
+                    .append("\n👨‍👩‍👧 Responsável: ")
+                    .append(ticket.getChildGuardianName());
+
+            if (ticket.getChildGuardianPhone() != null && !ticket.getChildGuardianPhone().isBlank()) {
+                builder
+                        .append(" | ")
+                        .append(ticket.getChildGuardianPhone());
+            }
+        }
+
+        return builder.toString();
+    }
 
     private String resolveTicketCompanyName(TicketResponse ticket) {
         if (ticket == null) {
@@ -4836,7 +4880,9 @@ private TripSearchInput parseTripSearch(String messageText) {
                     .setTripId(trip.getId())
                     .setPassengerId(passenger.getId())
                     .setSeatNumber(seatNumber)
-                    .setPassengerFareType(resolvePassengerFareTypeFromMetadata(preBookingMetadata));
+                    .setPassengerFareType(resolvePassengerFareTypeFromMetadata(preBookingMetadata))
+                    .setChildGuardianName(extractMetadataValue(preBookingMetadata, "child_guardian_name"))
+                    .setChildGuardianPhone(extractMetadataValue(preBookingMetadata, "child_guardian_phone"));
 
             BookingResponse booking = bookingService.create(request);
             BookingResponse returnBooking = createReturnBookingIfNeeded(session, passenger);

@@ -22,6 +22,27 @@ public class BookingRequest {
 
     private PassengerFareType passengerFareType;
 
+    private String childGuardianName;
+    private String childGuardianPhone;
+
+    public String getChildGuardianName() {
+        return childGuardianName;
+    }
+
+    public BookingRequest setChildGuardianName(String childGuardianName) {
+        this.childGuardianName = childGuardianName;
+        return this;
+    }
+
+    public String getChildGuardianPhone() {
+        return childGuardianPhone;
+    }
+
+    public BookingRequest setChildGuardianPhone(String childGuardianPhone) {
+        this.childGuardianPhone = childGuardianPhone;
+        return this;
+    }
+
     public UUID getTripId() {
         return tripId;
     }

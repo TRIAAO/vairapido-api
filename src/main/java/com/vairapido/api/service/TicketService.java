@@ -163,6 +163,11 @@ public class TicketService {
                 .setPassengerName(passenger.getFullName())
                 .setPassengerDocument(passenger.getDocumentNumber())
                 .setPassengerWhatsapp(passenger.getWhatsapp())
+                .setPassengerFareType(booking.getPassengerFareType())
+                .setPassengerAge(booking.getPassengerAge())
+                .setFarePercentage(booking.getFarePercentage())
+                .setChildGuardianName(booking.getChildGuardianName())
+                .setChildGuardianPhone(booking.getChildGuardianPhone())
 
                 .setCompanyName(company.getName())
                 .setCompanyTradeName(company.getTradeName())
