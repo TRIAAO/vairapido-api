@@ -1,7 +1,14 @@
 package com.vairapido.api.service;
 
+import com.vairapido.api.dto.whatsapp.WhatsAppBackfillResponse;
 import com.vairapido.api.dto.whatsapp.WhatsAppMessageResponse;
-import com.vairapido.api.entity.*;
+import com.vairapido.api.entity.Booking;
+import com.vairapido.api.entity.Passenger;
+import com.vairapido.api.entity.Ticket;
+import com.vairapido.api.entity.TransportCompany;
+import com.vairapido.api.entity.TravelRoute;
+import com.vairapido.api.entity.Trip;
+import com.vairapido.api.entity.WhatsAppMessage;
 import com.vairapido.api.entity.enums.BookingStatus;
 import com.vairapido.api.entity.enums.WhatsAppMessageStatus;
 import com.vairapido.api.entity.enums.WhatsAppMessageType;
@@ -43,23 +50,13 @@ public class WhatsAppService {
             throw new IllegalArgumentException("Só é possível enviar instruções de pagamento para reserva pendente.");
         }
 
-        Passenger passenger = booking.getPassenger();
-
-        if (passenger.getWhatsapp() == null || passenger.getWhatsapp().isBlank()) {
-            throw new IllegalArgumentException("O passageiro não possui WhatsApp cadastrado.");
-        }
-
-        WhatsAppMessage message = new WhatsAppMessage()
-                .setBooking(booking)
-                .setMessageType(WhatsAppMessageType.PAYMENT_INSTRUCTIONS)
-                .setStatus(WhatsAppMessageStatus.PENDING)
-                .setToPhone(passenger.getWhatsapp())
-                .setPassengerName(passenger.getFullName())
-                .setReferenceCode(booking.getBookingCode())
-                .setMessageBody(buildPaymentInstructionsMessage(booking))
-                .setProviderName("WHATSAPP_SIMULADO");
-
-        return toResponse(whatsAppMessageRepository.save(message));
+        return whatsAppMessageRepository
+                .findFirstByBooking_IdAndMessageType(
+                        booking.getId(),
+                        WhatsAppMessageType.PAYMENT_INSTRUCTIONS
+                )
+                .map(this::toResponse)
+                .orElseGet(() -> toResponse(createPaymentInstructionsMessage(booking)));
     }
 
     @Transactional
@@ -67,25 +64,83 @@ public class WhatsAppService {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new NotFoundException("Bilhete não encontrado."));
 
-        Booking booking = ticket.getBooking();
-        Passenger passenger = booking.getPassenger();
+        return whatsAppMessageRepository
+                .findFirstByTicket_IdAndMessageType(
+                        ticket.getId(),
+                        WhatsAppMessageType.TICKET_ISSUED
+                )
+                .map(this::toResponse)
+                .orElseGet(() -> toResponse(createTicketIssuedMessage(ticket)));
+    }
 
-        if (passenger.getWhatsapp() == null || passenger.getWhatsapp().isBlank()) {
-            throw new IllegalArgumentException("O passageiro não possui WhatsApp cadastrado.");
+    @Transactional
+    public WhatsAppBackfillResponse backfillMissingMessages() {
+        int paymentMessagesCreated = 0;
+        int ticketMessagesCreated = 0;
+        int skippedWithoutWhatsapp = 0;
+        int skippedAlreadyExisting = 0;
+
+        List<Booking> bookings = bookingRepository.findAll();
+
+        for (Booking booking : bookings) {
+            if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+                continue;
+            }
+
+            if (!hasPassengerWhatsapp(booking.getPassenger())) {
+                skippedWithoutWhatsapp++;
+                continue;
+            }
+
+            boolean alreadyExists = whatsAppMessageRepository.existsByBooking_IdAndMessageType(
+                    booking.getId(),
+                    WhatsAppMessageType.PAYMENT_INSTRUCTIONS
+            );
+
+            if (alreadyExists) {
+                skippedAlreadyExisting++;
+                continue;
+            }
+
+            createPaymentInstructionsMessage(booking);
+            paymentMessagesCreated++;
         }
 
-        WhatsAppMessage message = new WhatsAppMessage()
-                .setBooking(booking)
-                .setTicket(ticket)
-                .setMessageType(WhatsAppMessageType.TICKET_ISSUED)
-                .setStatus(WhatsAppMessageStatus.PENDING)
-                .setToPhone(passenger.getWhatsapp())
-                .setPassengerName(passenger.getFullName())
-                .setReferenceCode(ticket.getTicketCode())
-                .setMessageBody(buildTicketMessage(ticket))
-                .setProviderName("WHATSAPP_SIMULADO");
+        List<Ticket> tickets = ticketRepository.findAll();
 
-        return toResponse(whatsAppMessageRepository.save(message));
+        for (Ticket ticket : tickets) {
+            Booking booking = ticket.getBooking();
+
+            if (!hasPassengerWhatsapp(booking.getPassenger())) {
+                skippedWithoutWhatsapp++;
+                continue;
+            }
+
+            boolean alreadyExists = whatsAppMessageRepository.existsByTicket_IdAndMessageType(
+                    ticket.getId(),
+                    WhatsAppMessageType.TICKET_ISSUED
+            );
+
+            if (alreadyExists) {
+                skippedAlreadyExisting++;
+                continue;
+            }
+
+            createTicketIssuedMessage(ticket);
+            ticketMessagesCreated++;
+        }
+
+        int totalCreated = paymentMessagesCreated + ticketMessagesCreated;
+
+        return new WhatsAppBackfillResponse()
+                .setPaymentInstructionMessagesCreated(paymentMessagesCreated)
+                .setTicketIssuedMessagesCreated(ticketMessagesCreated)
+                .setSkippedWithoutWhatsapp(skippedWithoutWhatsapp)
+                .setSkippedAlreadyExisting(skippedAlreadyExisting)
+                .setProcessedAt(LocalDateTime.now())
+                .setMessage(totalCreated == 1
+                        ? "1 mensagem WhatsApp ausente foi criada."
+                        : totalCreated + " mensagens WhatsApp ausentes foram criadas.");
     }
 
     @Transactional(readOnly = true)
@@ -129,6 +184,54 @@ public class WhatsAppService {
     private WhatsAppMessage findEntityById(UUID id) {
         return whatsAppMessageRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Mensagem WhatsApp não encontrada."));
+    }
+
+    private WhatsAppMessage createPaymentInstructionsMessage(Booking booking) {
+        Passenger passenger = booking.getPassenger();
+
+        if (!hasPassengerWhatsapp(passenger)) {
+            throw new IllegalArgumentException("O passageiro não possui WhatsApp cadastrado.");
+        }
+
+        WhatsAppMessage message = new WhatsAppMessage()
+                .setBooking(booking)
+                .setMessageType(WhatsAppMessageType.PAYMENT_INSTRUCTIONS)
+                .setStatus(WhatsAppMessageStatus.PENDING)
+                .setToPhone(passenger.getWhatsapp())
+                .setPassengerName(passenger.getFullName())
+                .setReferenceCode(booking.getBookingCode())
+                .setMessageBody(buildPaymentInstructionsMessage(booking))
+                .setProviderName("WHATSAPP_SIMULADO");
+
+        return whatsAppMessageRepository.save(message);
+    }
+
+    private WhatsAppMessage createTicketIssuedMessage(Ticket ticket) {
+        Booking booking = ticket.getBooking();
+        Passenger passenger = booking.getPassenger();
+
+        if (!hasPassengerWhatsapp(passenger)) {
+            throw new IllegalArgumentException("O passageiro não possui WhatsApp cadastrado.");
+        }
+
+        WhatsAppMessage message = new WhatsAppMessage()
+                .setBooking(booking)
+                .setTicket(ticket)
+                .setMessageType(WhatsAppMessageType.TICKET_ISSUED)
+                .setStatus(WhatsAppMessageStatus.PENDING)
+                .setToPhone(passenger.getWhatsapp())
+                .setPassengerName(passenger.getFullName())
+                .setReferenceCode(ticket.getTicketCode())
+                .setMessageBody(buildTicketMessage(ticket))
+                .setProviderName("WHATSAPP_SIMULADO");
+
+        return whatsAppMessageRepository.save(message);
+    }
+
+    private boolean hasPassengerWhatsapp(Passenger passenger) {
+        return passenger != null
+                && passenger.getWhatsapp() != null
+                && !passenger.getWhatsapp().isBlank();
     }
 
     private String buildPaymentInstructionsMessage(Booking booking) {

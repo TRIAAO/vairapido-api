@@ -1,5 +1,6 @@
 package com.vairapido.api.controller;
 
+import com.vairapido.api.dto.whatsapp.WhatsAppBackfillResponse;
 import com.vairapido.api.dto.whatsapp.WhatsAppMessageResponse;
 import com.vairapido.api.service.WhatsAppService;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +26,11 @@ public class WhatsAppController {
     @PostMapping("/send-ticket/{ticketId}")
     public WhatsAppMessageResponse sendTicket(@PathVariable UUID ticketId) {
         return service.sendTicket(ticketId);
+    }
+
+    @PostMapping("/messages/backfill-missing")
+    public WhatsAppBackfillResponse backfillMissingMessages() {
+        return service.backfillMissingMessages();
     }
 
     @GetMapping("/messages")
